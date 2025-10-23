@@ -55,6 +55,7 @@ def get_headers(overrides: Optional[Dict[str, str]] = None,
     if overrides:
         headers.update(overrides)
     # Allow reading the token from environment if not explicitly passed
+    '''
     if not authorization_token:
         import os
 
@@ -62,6 +63,8 @@ def get_headers(overrides: Optional[Dict[str, str]] = None,
     if authorization_token:
         # The API in your capture uses header name 'authorizationtoken'
         headers["authorizationtoken"] = authorization_token
+    '''
+    headers["authorizationtoken"] = _CACHED_SGX_TOKEN
     # Keep header names lowercase for consistency with capture; allow overrides
     if origin:
         headers["origin"] = origin
