@@ -1,0 +1,591 @@
+{
+    "meta": {
+        "code": "200",
+        "message": "success",
+        "totalPages": 1,
+        "totalItems": 20,
+        "requestTimestamp": 1761221100731
+    },
+    "data": [
+        {
+            "ref_id": "SG251013INTRBN3C",
+            "sub": "CACT25",
+            "category_name": "Coupon Payment",
+            "submitted_by": "DBS BANK LTD",
+            "title": "Coupon Payment::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "AU3FN0056685",
+                    "stock_code": "XUTB",
+                    "security_name": "DBS GRP AUD300M F310408",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "45MD"
+                }
+            ],
+            "security_name": "DBS GRP AUD300M F310408",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/R4UE4P9H1B27AUR1/c5a7ef342cbb05fc5ac7043d8fe900eef61c9ea5d2c90df67ccb364c06e9a7fb",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20251013",
+            "submission_date_time": 1760337125000,
+            "broadcast_date_time": 1760337126000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "R4UE4P9H1B27AUR1",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG251002INTRXR3D",
+            "sub": "CACT25",
+            "category_name": "Coupon Payment",
+            "submitted_by": "DBS BANK LTD",
+            "title": "Coupon Payment::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "US24023LAP13",
+                    "stock_code": "JXVB",
+                    "security_name": "DBS GRP US$500M F300321R",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "2ZWE"
+                }
+            ],
+            "security_name": "DBS GRP US$500M F300321R",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/XPYL6T3RGGF1AYCP/c42c8a27af17db2b2ade583ec8e0c896f22ba881be0e0f5980157c5b6b87c200",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20251002",
+            "submission_date_time": 1759396318000,
+            "broadcast_date_time": 1759396319000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "XPYL6T3RGGF1AYCP",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG251002INTR68CZ",
+            "sub": "CACT25",
+            "category_name": "Coupon Payment",
+            "submitted_by": "DBS BANK LTD",
+            "title": "Coupon Payment::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "US24023KAP30",
+                    "stock_code": "IVXB",
+                    "security_name": "DBS GRP US$500M F300321A",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "1RJW"
+                }
+            ],
+            "security_name": "DBS GRP US$500M F300321A",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/D5F007QZHDX7FVZD/c81fde8ff4d755ebaa90f4fc7da06844a10168567fbabd5e3f81f5685d8bc347",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20251002",
+            "submission_date_time": 1759396254000,
+            "broadcast_date_time": 1759396255000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "D5F007QZHDX7FVZD",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG251002INTRYJB7",
+            "sub": "CACT25",
+            "category_name": "Coupon Payment",
+            "submitted_by": "DBS BANK LTD",
+            "title": "Coupon Payment::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "US24023LAM81",
+                    "stock_code": "KEEB",
+                    "security_name": "DBS GRP US$1B F280321R",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "1SKJ"
+                }
+            ],
+            "security_name": "DBS GRP US$1B F280321R",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/COVH71JDZBN0AOHQ/d6e5af5d2946cd0dcbb69a99377acf7ce90084229cd58ddf72d7865425ec300a",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20251002",
+            "submission_date_time": 1759396125000,
+            "broadcast_date_time": 1759396126000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "COVH71JDZBN0AOHQ",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG251002INTRWQDT",
+            "sub": "CACT25",
+            "category_name": "Coupon Payment",
+            "submitted_by": "DBS BANK LTD",
+            "title": "Coupon Payment::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "US24023KAM09",
+                    "stock_code": "9ZFB",
+                    "security_name": "DBS GRP US$1B F280321A",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "6HDY"
+                }
+            ],
+            "security_name": "DBS GRP US$1B F280321A",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/DA9BTOKJ688UJ1X3/e39c4464ae7a0a82b97edc731494b3fce57404f75883d5ad95ddd873e3d9fdc1",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20251002",
+            "submission_date_time": 1759396047000,
+            "broadcast_date_time": 1759396047000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "DA9BTOKJ688UJ1X3",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250917REDMJA3H",
+            "sub": "CACT10",
+            "category_name": "Final Maturity",
+            "submitted_by": "DBS BANK LTD",
+            "title": "Final Maturity::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "US24023LAJ52",
+                    "stock_code": "NCEB",
+                    "security_name": "DBS GRP US$750M5.479%N250912R",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "8WDH"
+                }
+            ],
+            "security_name": "DBS GRP US$750M5.479%N250912R",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/B98HWBVHPG21MDAY/5eb1db378d55992fd556ef797926b31b40bcdaefd14c289accda1b47d7e60929",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250917",
+            "submission_date_time": 1758079321000,
+            "broadcast_date_time": 1758079321000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "B98HWBVHPG21MDAY",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250917REDMFLOU",
+            "sub": "CACT10",
+            "category_name": "Final Maturity",
+            "submitted_by": "DBS BANK LTD",
+            "title": "Final Maturity::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "US24023KAK43",
+                    "stock_code": "IXRB",
+                    "security_name": "DBS GRP US$750M F250912A",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "89P1"
+                }
+            ],
+            "security_name": "DBS GRP US$750M F250912A",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/D3HZEOK9L9HGVBT7/3af71fcdf8fac20deb2b588ed30c0e4fd71456816b4f23c7a41957ec3bdde9d3",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250917",
+            "submission_date_time": 1758079245000,
+            "broadcast_date_time": 1758079246000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "D3HZEOK9L9HGVBT7",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250917REDMPNF5",
+            "sub": "CACT10",
+            "category_name": "Final Maturity",
+            "submitted_by": "DBS BANK LTD",
+            "title": "Final Maturity::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "US24023KAJ79",
+                    "stock_code": "YEOB",
+                    "security_name": "DBS GRP US$750M5.479%N250912A",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "39OP"
+                }
+            ],
+            "security_name": "DBS GRP US$750M5.479%N250912A",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/MF8TMMPM264UOOBU/f0fca45191d4ef96a0c7f1d26cda53ccfbea9a245045e2f9646de8b1eb28e499",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250917",
+            "submission_date_time": 1758079071000,
+            "broadcast_date_time": 1758079072000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "MF8TMMPM264UOOBU",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250917REDMK3YC",
+            "sub": "CACT10",
+            "category_name": "Final Maturity",
+            "submitted_by": "DBS BANK LTD",
+            "title": "Final Maturity::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "US24023LAK26",
+                    "stock_code": "W7UB",
+                    "security_name": "DBS GRP US$750M F250912R",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "6YO6"
+                }
+            ],
+            "security_name": "DBS GRP US$750M F250912R",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/JP479M8YZAZ6M6JI/f9860e119ec5c81a25485555e5c22e471e66b1382c7e30bfbfb9120e98cc452c",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250917",
+            "submission_date_time": 1758078832000,
+            "broadcast_date_time": 1758078833000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "JP479M8YZAZ6M6JI",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250912REDMRVFL",
+            "sub": "CACT10",
+            "category_name": "Final Maturity",
+            "submitted_by": "DBS BANK LTD",
+            "title": "Final Maturity::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "SGXF11720293",
+                    "stock_code": "SBBB",
+                    "security_name": "DBS GRP S$1B3.98%PERCAPSEC",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "7TF2"
+                }
+            ],
+            "security_name": "DBS GRP S$1B3.98%PERCAPSEC",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/UAL1M4RS97ZOQ6GQ/632eaef682df9519818c2340983bc4be774035ba5d372aebaf2cebdd670d8793",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250912",
+            "submission_date_time": 1757669099000,
+            "broadcast_date_time": 1757669099000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "UAL1M4RS97ZOQ6GQ",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250912INTRKY5X",
+            "sub": "CACT25",
+            "category_name": "Coupon Payment",
+            "submitted_by": "DBS BANK LTD ",
+            "title": "Coupon Payment::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "US24023LAK26",
+                    "stock_code": "W7UB",
+                    "security_name": "DBS GRP US$750M F250912R",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "6YO6"
+                }
+            ],
+            "security_name": "DBS GRP US$750M F250912R",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/LBV8JQOFDRL7WLLU/e115e929b6863d4085ce7536871083e7ee185f05f084128b70f78513ad1c84ea",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250912",
+            "submission_date_time": 1757668200000,
+            "broadcast_date_time": 1757668200000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "LBV8JQOFDRL7WLLU",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250912INTR4V84",
+            "sub": "CACT25",
+            "category_name": "Coupon Payment",
+            "submitted_by": "DBS BANK LTD ",
+            "title": "Coupon Payment::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "US24023KAK43",
+                    "stock_code": "IXRB",
+                    "security_name": "DBS GRP US$750M F250912A",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "89P1"
+                }
+            ],
+            "security_name": "DBS GRP US$750M F250912A",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/7C7K1Q4GM0T6BS8W/6659ceff3d68411ba9a4ab26a1965613c3534e41961b76c9069b4618c2016246",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250912",
+            "submission_date_time": 1757668100000,
+            "broadcast_date_time": 1757668100000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "7C7K1Q4GM0T6BS8W",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250904OTHR33GX",
+            "sub": "ANNC15",
+            "category_name": "Employee Stock Option/ Share Scheme",
+            "submitted_by": "MARC TAN",
+            "title": "Employee Stock Option/ Share Scheme::NOTICE OF TRANSFER OF TREASURY SHARES",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "SG1L01001701",
+                    "stock_code": "D05",
+                    "security_name": "DBS GROUP HOLDINGS LTD",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "1L01"
+                }
+            ],
+            "security_name": "DBS GROUP HOLDINGS LTD",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/NODCESZUCMACKS7X/0e3b7dcded1edb8f042a8756c81b0550383513d933fd3690181762d5d3ba4184",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250904",
+            "submission_date_time": 1756980334000,
+            "broadcast_date_time": 1756980334000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "ANNC",
+            "id": "NODCESZUCMACKS7X",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250902OTHRR8KP",
+            "sub": "ANNC15",
+            "category_name": "Employee Stock Option/ Share Scheme",
+            "submitted_by": "MARC TAN",
+            "title": "Employee Stock Option/ Share Scheme::NOTICE OF TRANSFER OF TREASURY SHARES",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "SG1L01001701",
+                    "stock_code": "D05",
+                    "security_name": "DBS GROUP HOLDINGS LTD",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "1L01"
+                }
+            ],
+            "security_name": "DBS GROUP HOLDINGS LTD",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/MMBTNPLGTQ2JRX93/2d10d9a090c1769b942e15dd22047570ebd852719726ba1545a10df3ad3439ac",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250902",
+            "submission_date_time": 1756806995000,
+            "broadcast_date_time": 1756806996000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "ANNC",
+            "id": "MMBTNPLGTQ2JRX93",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250901OTHRQZL6",
+            "sub": "ANNC15",
+            "category_name": "Employee Stock Option/ Share Scheme",
+            "submitted_by": "MARC TAN",
+            "title": "Employee Stock Option/ Share Scheme::GRANT OF SHARE AWARDS",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "SG1L01001701",
+                    "stock_code": "D05",
+                    "security_name": "DBS GROUP HOLDINGS LTD",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "1L01"
+                }
+            ],
+            "security_name": "DBS GROUP HOLDINGS LTD",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/JY9BWRC3TSMC8UHH/63b051f529eaaa09a749594bb7158f8cb6ccd13d0bb7bcdc5a0c7cd76115d1dd",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250901",
+            "submission_date_time": 1756726329000,
+            "broadcast_date_time": 1756726329000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "ANNC",
+            "id": "JY9BWRC3TSMC8UHH",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250901OTHRJUD8",
+            "sub": "ANNC15",
+            "category_name": "Employee Stock Option/ Share Scheme",
+            "submitted_by": "MARC TAN",
+            "title": "Employee Stock Option/ Share Scheme::NOTICE OF TRANSFER OF TREASURY SHARES",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "SG1L01001701",
+                    "stock_code": "D05",
+                    "security_name": "DBS GROUP HOLDINGS LTD",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "1L01"
+                }
+            ],
+            "security_name": "DBS GROUP HOLDINGS LTD",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/0UQGXB89SGIN2LYF/93353f34dfce8c1942ae7b25acf5c964edf3d969ac95f748dc330d77dbea254a",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250901",
+            "submission_date_time": 1756726246000,
+            "broadcast_date_time": 1756726246000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "ANNC",
+            "id": "0UQGXB89SGIN2LYF",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250827OTHRWWHZ",
+            "sub": "ANNC14",
+            "category_name": "Disclosure of Interest/ Changes in Interest",
+            "submitted_by": "MARC TAN",
+            "title": "Disclosure of Interest/ Changes in Interest of Director/ Chief Executive Officer::Disclosure of director's interest",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "SG1L01001701",
+                    "stock_code": "D05",
+                    "security_name": "DBS GROUP HOLDINGS LTD",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "1L01"
+                }
+            ],
+            "security_name": "DBS GROUP HOLDINGS LTD",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/NKSC667337574FRA/7c423641c8d610f29b068c1146ca374ce6366949cc5eadb3aeeb17ea82de6d80",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250827",
+            "submission_date_time": 1756294690000,
+            "broadcast_date_time": 1756294690000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "ANNC",
+            "id": "NKSC667337574FRA",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250825OTHRH54J",
+            "sub": "ANNC15",
+            "category_name": "Employee Stock Option/ Share Scheme",
+            "submitted_by": "MARC TAN",
+            "title": "Employee Stock Option/ Share Scheme::Adjustments to unvested Share Awards granted under the DBSH Share Plan",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "SG1L01001701",
+                    "stock_code": "D05",
+                    "security_name": "DBS GROUP HOLDINGS LTD",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "1L01"
+                }
+            ],
+            "security_name": "DBS GROUP HOLDINGS LTD",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/NFAEPG4F304F4W14/7a16af5eb26675be7364d4054a014a93adacd7a0b3d3e5a8ea0bf748b07bc046",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250825",
+            "submission_date_time": 1756120636000,
+            "broadcast_date_time": 1756120636000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "ANNC",
+            "id": "NFAEPG4F304F4W14",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250807OTHRMJPX",
+            "sub": "ANNC06",
+            "category_name": "Asset Acquisitions and Disposals",
+            "submitted_by": "MARC TAN",
+            "title": "Asset Acquisitions and Disposals::ANNOUNCEMENT PURSUANT TO RULE 706A OF THE SGX LISTING MANUAL",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "SG1L01001701",
+                    "stock_code": "D05",
+                    "security_name": "DBS GROUP HOLDINGS LTD",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "1L01"
+                }
+            ],
+            "security_name": "DBS GROUP HOLDINGS LTD",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/94BYSQF874PAAR9W/df61ad823d9d3a45480243ef7e90ec4ee7e5ed9c90339598d2d6e51ca890d21d",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250807",
+            "submission_date_time": 1754558827000,
+            "broadcast_date_time": 1754558827000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "ANNC",
+            "id": "94BYSQF874PAAR9W",
+            "sn": null,
+            "product_category": null
+        },
+        {
+            "ref_id": "SG250807DVCAPUQT",
+            "sub": "CACT06",
+            "category_name": "Cash Dividend/ Distribution",
+            "submitted_by": "MARC TAN",
+            "title": "Cash Dividend/ Distribution::Mandatory",
+            "announcer_name": null,
+            "issuers": [
+                {
+                    "isin_code": "SG1L01001701",
+                    "stock_code": "D05",
+                    "security_name": "DBS GROUP HOLDINGS LTD",
+                    "issuer_name": "DBS GROUP HOLDINGS LTD",
+                    "ibm_code": "1L01"
+                }
+            ],
+            "security_name": "DBS GROUP HOLDINGS LTD",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/HJ9N9C94JRSF1Q1Z/5c51c5cbd54535b0220380856bc5cdd41cf2fc172c0781bcedbbbbef186f9cba",
+            "issuer_name": "DBS GROUP HOLDINGS LTD",
+            "submission_date": "20250807",
+            "submission_date_time": 1754519573000,
+            "broadcast_date_time": 1754519573000,
+            "xml": null,
+            "submission_time": null,
+            "cat": "CACT",
+            "id": "HJ9N9C94JRSF1Q1Z",
+            "sn": null,
+            "product_category": null
+        }
+    ]
+}
