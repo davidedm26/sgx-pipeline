@@ -15,15 +15,24 @@ from pathlib import Path
 import sys
 import time
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
+import signal
+import threading
+from tenacity import retry, stop_after_attempt, wait_exponential
+
 ROOT_PATH = Path(__file__).resolve().parent.parent.parent
 SRC_PATH = ROOT_PATH / "src"
 sys.path.append(str(ROOT_PATH))
 sys.path.append(str(SRC_PATH))
 
 from utils.http_requests_utils import get_headers
-from config.settings import SGX_COMPANY_API_URL, SGX_RESULTS_COUNT_API_URL, PROJECT_ROOT, ATTACHMENTS_BASE_URL, RAW_DATA_DIR, PLATFORM 
+from config.settings import SGX_COMPANY_API_URL, SGX_RESULTS_COUNT_API_URL, PROJECT_ROOT, ATTACHMENTS_BASE_URL, RAW_DATA_DIR, PLATFORM, PAGE_SIZE, MAX_PAGES, MAX_WORKERS
+import utils.db_utils as db_utils
+from utils import document_worker
 from bs4 import BeautifulSoup
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=1, max=10))
 def get_search_results(company_name: str = "DBS GROUP HOLDINGS LTD",
                periodstart: Optional[str] = "20250204_160000",
                periodend: Optional[str] = "20251022_120000",
@@ -45,6 +54,7 @@ def get_search_results(company_name: str = "DBS GROUP HOLDINGS LTD",
     }
 
     try:
+        
         documents_response = requests.get(SGX_COMPANY_API_URL, params=params, headers=get_headers())
         documents_response.raise_for_status()
         return documents_response.json()
@@ -77,6 +87,7 @@ def extract_documents_list(response_json: dict) -> Optional[list]:
         print(f"Error extracting documents list: {e}")
         return None
     
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=1, max=10))
 def request_documents_count(company_name: str,
                         periodstart: Optional[str] = "20250204_160000",
                         periodend: Optional[str] = "20251022_120000",
@@ -114,32 +125,20 @@ def request_documents_count(company_name: str,
         print(f"Unexpected error: {e}")
         return None
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=1, max=10))
 def get_web_page(url: str) -> Optional[str]:
-    """Fetch a web page and return its HTML content."""
-    try:
-        response = requests.get(url, headers=get_headers())
-        response.raise_for_status()
-        
-        # Save the page content
-        #with open(debug_path, "w", encoding="utf-8") as file:
-        #    file.write(response.text)
-        #print(f"Web page content saved to {debug_path}")
+    """Fetch a web page and return its HTML content with retries."""
+    response = requests.get(url, headers=get_headers(), timeout=10)
+    response.raise_for_status()
+    return response.text
 
-        return response.text
-    except requests.exceptions.RequestException as req_err:
-        print(f"HTTP request error: {req_err}")
-        return None
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        return None
-    
 def store_web_page(html_content: str, path: str) -> None:
     """Store the fetched web page content into a local file."""
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as file:
             file.write(html_content)
-        print(f"Web page content saved to {path}")
+        #print(f"Web page content saved to {path}")
     except Exception as e:
         print(f"Error saving web page content: {e}")
 
@@ -192,26 +191,14 @@ def get_attachments_url_list(html_content: Optional[str]) -> Optional[list]:
         print(f"Unexpected error: {e}")
         return None
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=1, max=10))
 def download_attachment(attachment_url: str, save_path: str) -> None:
-    """Download an attachment from a URL and save it to a file."""
-    try:
-        response = requests.get(attachment_url, headers=get_headers())
-        response.raise_for_status()
-
-        try:
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            with open(save_path, "wb") as file:
-                file.write(response.content)
-        except IOError as io_err:
-            print(f"File I/O error: {io_err}")
-        except Exception as e:
-            print(f"Unexpected error while saving the file: {e}")
-        
-        print(f"Attachment downloaded and saved to {save_path}")
-    except requests.exceptions.RequestException as req_err:
-        print(f"HTTP request error: {req_err}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
+    """Download an attachment from a URL and save it to a file with retries."""
+    response = requests.get(attachment_url, headers=get_headers(), timeout=10)
+    response.raise_for_status()
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, "wb") as file:
+        file.write(response.content)
 
 def get_document_metadata(document: dict) -> dict:
     """Builds and returns a metadata dictionary for a document."""
@@ -223,6 +210,7 @@ def get_document_metadata(document: dict) -> dict:
         "company_name": document.get("issuer_name", ""),
         "filing_date": document.get("submission_date", ""),
         "url": document.get("url", ""), 
+        "platform": PLATFORM,
     }
     return metadata
 
@@ -238,7 +226,7 @@ def store_metadata_debug(metadata: dict, folder_path: str) -> None:
         metadata_path = os.path.join(folder_path, "metadata.json")
         with open(metadata_path, "w", encoding="utf-8") as file:
             _json.dump(metadata, file, indent=4)
-        print(f"Metadata saved to {metadata_path}")
+        #print(f"Metadata saved to {metadata_path}")
     except Exception as e:
         print(f"Error saving metadata: {e}")
 
@@ -248,7 +236,7 @@ def process_document(document: dict, company_id: str) -> bool:
         # Build document metadata dictionary
         metadata = get_document_metadata(document)
         metadata["company_id"] = company_id
-        print(f"Metadata for document {document.get('id')}: {metadata}")
+        
         url = metadata.get("url")
         if not url:
             raise ValueError("Document URL is missing")
@@ -267,7 +255,7 @@ def process_document(document: dict, company_id: str) -> bool:
         if filing_date_str:
             try:
                 filing_date = datetime.strptime(filing_date_str, "%Y%m%d").replace(tzinfo=timezone.utc)
-                print(f"Transformed filing_date {filing_date_str} to {filing_date}")
+                
                 metadata["filing_date"] = filing_date
                 
             except ValueError as e:
@@ -279,15 +267,23 @@ def process_document(document: dict, company_id: str) -> bool:
         relative_path = os.path.relpath(wp_path, RAW_DATA_DIR)
         metadata["file_path"] = relative_path
         
-        store_web_page(wp,  wp_path)
+        try:
+            store_web_page(wp,  wp_path)
+        except Exception as e:
+            print(f"Error storing web page: {e}")   
+            return
+
+        filing_date_str_with_scores = filing_date.strftime("%Y-%m-%d")
+        metadata["file_name"] = f"{file_type} - {company_name_no_space} - [{filing_date_str_with_scores}]"
+        
         
         #print(f"Metadata for document {document.get('id')}: {metadata}")
 
         att_list = get_attachments_url_list(wp)
         #print(f"Attachment list: {att_list}")
         if (att_list and len(att_list) > 0):
-            for idx, att in enumerate(att_list or []):
-                att_filename = f"attachment_{document.get('id')}_{idx}.pdf"
+            for att in (att_list or []):
+                att_filename = att.split("/")[-1]
                 att_path = os.path.join(document_folder, att_filename)
                 download_attachment(att, att_path)
                 
@@ -297,81 +293,130 @@ def process_document(document: dict, company_id: str) -> bool:
                     metadata["supporting_file_paths"] = []
                 metadata["supporting_file_paths"].append(relative_att_path)
         else:
-            print("No attachments found for this document.")
+            #print("No attachments found for this document.")
+            pass
         
-        store_metadata_debug(metadata, document_folder) #need to be replaced with the db storage function
+        metadata["updated_at"] = datetime.now(timezone.utc)
+        #store_metadata_debug(metadata, document_folder) 
+        return metadata
     except Exception as e:
         print(f"Error processing document: {e}")
-        return False
-    return True
+        return None
+
+# Global flag to handle graceful shutdown
+shutdown_event = threading.Event()
+
+def signal_handler(sig, frame):
+    """Signal handler to set the shutdown event."""
+    print("\nGraceful shutdown initiated. Waiting for threads to complete...")
+    shutdown_event.set()
+
+# Register the signal handler for SIGINT (Ctrl+C)
+signal.signal(signal.SIGINT, signal_handler)
 
 def process_company(company_name: str, company_id: str):
     """Process all documents for a given company."""
-    #The company_id is passed because it is needed in metadata storage
-    
-    #inserisci paginazione, ricava nr pagine dalla richiesta count e poi itera per ciascuna pagina
-    #inserisci tutti i metadati ottenuti in metadata_batch[]
-    
-    response = get_search_results(company_name=company_name, pagesize=20)
-    
-    if response:
-        print(f"Search results for {company_name}")
-    else:
-        print(f"Failed to retrieve search results for {company_name}")
-
-    count = request_documents_count(company_name=company_name)
-    if count is not None:
-        print(f"Document count for {company_name}: {count}")
-    else:
+    n_results = request_documents_count(company_name=company_name)
+    if n_results is None:
         print(f"Failed to retrieve document count for {company_name}")
+        return
+
+    n_pages = (n_results + PAGE_SIZE - 1) // PAGE_SIZE  # Calculate number of pages needed
+    all_documents = []
+
+    # Collect all documents from all pages
+    for page_num in range(min(n_pages, MAX_PAGES) if MAX_PAGES > 0 else n_pages):
+        if shutdown_event.is_set():
+            print("Shutdown event detected. Exiting document collection loop.")
+            return
+
+        print(f"Processing page {page_num + 1}/{n_pages} (page size {PAGE_SIZE}) for {company_name}")
+        response = get_search_results(company_name=company_name, pagesize=PAGE_SIZE, pagestart=page_num)
+
+        if not response:
+            print(f"Failed to retrieve search results for {company_name}")
+            continue
+
+        doc_list = extract_documents_list(response)
+        if doc_list:
+            all_documents.extend(doc_list)
+
+    print(f"Total documents collected: {len(all_documents)}")
+    # Extract and print the list of document IDs for debugging
+    document_ids = [doc.get("ref_id", "Unknown ID") for doc in all_documents]
+    print(f"Document IDs: {document_ids}")
+
+    all_metadata = []
     
-    doc_list = extract_documents_list(response)
-    print(f"Extracted {len(doc_list) if doc_list else 0} documents.")
-    
-    for doc in doc_list or []:
-        #Qui introduci Multithreading
+    # Process all documents using multithreading
+    if all_documents:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = [executor.submit(document_worker.process_document, doc, company_id) for doc in all_documents]
+
+            with tqdm(total=len(all_documents), desc="Processing documents") as pbar:
+                for future in as_completed(futures):
+                    if shutdown_event.is_set():
+                        print("Shutdown event detected. Cancelling remaining tasks.")
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        return
+
+                    try:
+                        doc_metadata = future.result()
+                        if doc_metadata:
+                            all_metadata.append(doc_metadata)
+                    except Exception as e:
+                        print(f"Error processing document: {e}")
+                    finally:
+                        pbar.update(1)
+                        
+        # Store all metadata in the database
+        from utils.db_utils import store_metadata_batch
+
         try:
-            process_document(doc, company_id)
+            store_metadata_batch(all_metadata)
         except Exception as e:
-            print(f"Error processing document: {e}")   
-    
+            print(f"Error storing metadata: {e}")
 
     # Further processing can be done here
 if __name__ == "__main__":
-    company_name = "DBS GROUP HOLDINGS LTD"
+    company_name_1 = "DBS GROUP HOLDINGS LTD"
+    company_name_2 = "ABR HOLDINGS LIMITED"
     #process_company(company_name)
     document = {
-            "ref_id": "SG251013INTRBN3C",
-            "sub": "CACT25",
-            "category_name": "Coupon Payment",
-            "submitted_by": "DBS BANK LTD",
-            "title": "Coupon Payment::Mandatory",
+            "ref_id": "SG250807DVCAPUQT",
+            "sub": "CACT06",
+            "category_name": "Cash Dividend/ Distribution",
+            "submitted_by": "MARC TAN",
+            "title": "Cash Dividend/ Distribution::Mandatory",
             "announcer_name": None,
             "issuers": [
                 {
-                    "isin_code": "AU3FN0056685",
-                    "stock_code": "XUTB",
-                    "security_name": "DBS GRP AUD300M F310408",
+                    "isin_code": "SG1L01001701",
+                    "stock_code": "D05",
+                    "security_name": "DBS GROUP HOLDINGS LTD",
                     "issuer_name": "DBS GROUP HOLDINGS LTD",
-                    "ibm_code": "45MD"
+                    "ibm_code": "1L01"
                 }
             ],
-            "security_name": "DBS GRP AUD300M F310408",
-            "url": "https://links.sgx.com/1.0.0/corporate-announcements/R4UE4P9H1B27AUR1/c5a7ef342cbb05fc5ac7043d8fe900eef61c9ea5d2c90df67ccb364c06e9a7fb",
+            "security_name": "DBS GROUP HOLDINGS LTD",
+            "url": "https://links.sgx.com/1.0.0/corporate-announcements/HJ9N9C94JRSF1Q1Z/5c51c5cbd54535b0220380856bc5cdd41cf2fc172c0781bcedbbbbef186f9cba",
             "issuer_name": "DBS GROUP HOLDINGS LTD",
-            "submission_date": "20251013",
-            "submission_date_time": 1760337125000,
-            "broadcast_date_time": 1760337126000,
+            "submission_date": "20250807",
+            "submission_date_time": 1754519573000,
+            "broadcast_date_time": 1754519573000,
             "xml": None,
-            "submission_time": None ,
+            "submission_time": None,
             "cat": "CACT",
-            "id": "R4UE4P9H1B27AUR1",
+            "id": "HJ9N9C94JRSF1Q1Z",
             "sn": None,
             "product_category": None
         }
     
-
+    '''
     if process_document(document, "ID12345"):
         print("Document processed successfully.")
     else:
         print("Document processing failed.")
+    '''
+
+    process_company(company_name_2, "ID56789")

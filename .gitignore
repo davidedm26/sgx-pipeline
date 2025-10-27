@@ -36,3 +36,5 @@ docker-compose.override.yml
 Thumbs.db
 
 
+# Data raw files
+raw_data_storage/

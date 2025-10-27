@@ -34,6 +34,8 @@ COMPANIES_UAT_COLLECTION = os.getenv("COMPANIES_UAT_COLLECTION") or "sgx-documen
 UNLISTED_COMPANIES_COLLECTION = os.getenv("UNLISTED_COMPANIES_COLLECTION") or "sgx-documents-unlisted"
 
 
+PAGE_SIZE = int(os.getenv("PAGE_SIZE", "10"))
+MAX_PAGES = int(os.getenv("MAX_PAGES", "0"))  # 0 means no limit
 MAX_COMPANIES = int(os.getenv("MAX_COMPANIES", "0"))  # 0 means no limit
 MAX_FILES_PER_COMPANY = int(os.getenv("MAX_FILES_PER_COMPANY", "20"))  # Max files to download per company
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "5"))  # Max concurrent workers for downloading files
