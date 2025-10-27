@@ -38,4 +38,4 @@ Thumbs.db
 
 # Data raw files
 raw_data_storage/
-debug/  
+debug/*
