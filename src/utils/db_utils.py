@@ -30,11 +30,13 @@ def create_indexes(db):
         )
 
         db[PUBLIC_DOCUMENTS_COLLECTION].create_index(
-            [("file_name", 1)], unique=True, background=True
-        )
-        db[PUBLIC_DOCUMENTS_COLLECTION].create_index(
             [("document_id", 1)], unique=True, background=True
         )
+        
+        db[PUBLIC_DOCUMENTS_COLLECTION].create_index(
+            [("file_name", 1)], unique=True, background=True
+        )
+        
 
         db[COMPANIES_PROD_COLLECTION].create_index(
             [("company_id", 1)], unique=True, background=True
@@ -76,7 +78,7 @@ def store_metadata_batch(metadata_list: list) -> None:
         result = collection.insert_many(metadata_list, ordered=False)
         print(f"Saved {len(result.inserted_ids)} documents in {PUBLIC_DOCUMENTS_COLLECTION}.")
     except BulkWriteError as bwe:
-        duplicate_count = sum(1 for error in bwe.details.get("writeErrors", []) if (error.get("code") == 11000 and error.get("keyPattern") == {"file_name": 1}))
+        duplicate_count = sum(1 for error in bwe.details.get("writeErrors", []) if (error.get("code") == 11000 and error.get("keyPattern") == {"document_id": 1}))
         added_count = len(metadata_list) - duplicate_count
         if added_count > 0:
             print(f"Saved {added_count} new documents in {PUBLIC_DOCUMENTS_COLLECTION}.")
@@ -85,32 +87,60 @@ def store_metadata_batch(metadata_list: list) -> None:
             duplicate_files = []
             for error in bwe.details.get("writeErrors", []):
                 # Manage file_name duplicates by appending a counter
+                print(f"Duplicate error details: {error}")
+                
                 if error.get("code") == 11000 and error.get("keyPattern") == {"document_id": 1}:
                     # Handle duplicate based on document_id
+                    #print("Handling duplicate document_id ...")
                     duplicate_file = metadata_list[error["index"]]
                     doc_id = duplicate_file.get("document_id", "unknown")
-                    print(f"Duplicate document_id found: {doc_id}. Skipping insertion.")
+                    existing_doc = collection.find_one({"document_id": doc_id})
+                    
+                    if existing_doc:
+                        new_supporting_file_paths = duplicate_file.get("supporting_file_paths", [])
+                        existing_supporting_file_paths = existing_doc.get("supporting_file_paths", [])
+
+                        # DEBUG PRINT
+                        #print(f"Comparing supporting_file_paths lengths for document_id {doc_id}:")
+                        #print(f" - New supporting_file_paths length: {len(new_supporting_file_paths)}")
+                        #print(f" - Existing supporting_file_paths length: {len(existing_supporting_file_paths)}")
+
+                        if len(new_supporting_file_paths) > len(existing_supporting_file_paths):
+                            try:
+                                collection.update_one(
+                                    {"document_id": doc_id},
+                                    {"$set": duplicate_file}
+                                )
+                                print(f"Updated document_id {doc_id} with updated supporting_file_paths.")
+                            except Exception as e:
+                                print(f"Failed to update document_id {doc_id}: {e}")
+                        else:
+                            print(f"Document_id {doc_id} already exists with a newer version. Skipping update.")
+                    else:
+                        print(f"Duplicate document_id found: {doc_id}. Skipping insertion.")
                 elif error.get("code") == 11000 and error.get("keyPattern") == {"file_name": 1}:
-                    duplicate_file = metadata_list[error["index"]]  # file that caused the duplicate error
-                    base_name = duplicate_file.get("file_name", "unknown")  # get its file_name
-                    counter = 1
-                    new_file_name = f"{base_name} - [{counter}]"  # start with counter 1
-                    while collection.find_one({"file_name": new_file_name}):  # verify if new name exists
-                        counter += 1
-                        new_file_name = f"{base_name} - [{counter}]"  # update new name and try again
+                    # Handle duplicate file_name only if document_id duplication did not occur
+                    if not any(err.get("code") == 11000 and err.get("keyPattern") == {"document_id": 1} for err in bwe.details.get("writeErrors", [])):
+                        #print("Handling duplicate file_name ...")
+                        duplicate_file = metadata_list[error["index"]]  # file that caused the duplicate error
+                        base_name = duplicate_file.get("file_name", "unknown")  # get its file_name
+                        counter = 1
+                        new_file_name = f"{base_name} - [{counter}]"  # start with counter 1
+                        while collection.find_one({"file_name": new_file_name}):  # verify if new name exists
+                            counter += 1
+                            new_file_name = f"{base_name} - [{counter}]"  # update new name and try again
 
-                    duplicate_file["file_name"] = new_file_name
+                        duplicate_file["file_name"] = new_file_name
 
-                    try:
-                        collection.insert_one(duplicate_file)
-                        print(f"Inserted duplicate with new name: {new_file_name}")
-                    except Exception as e:
-                        #print(f"Failed to insert duplicate file:{duplicate_file.get('document_id')}")
-                        pass
-                    duplicate_files.append(new_file_name)
+                        try:
+                            collection.insert_one(duplicate_file)
+                            print(f"Inserted duplicate with new name: {new_file_name}")
+                        except Exception as e:
+                            #print(f"Failed to insert duplicate file:{duplicate_file.get('document_id')}")
+                            pass
+                        duplicate_files.append(new_file_name)
     except Exception as e:
         print(f"Batch insert error: {e}")
-    
 
 __all__ = ["db", "connect_mongo", "store_metadata_batch"]
 

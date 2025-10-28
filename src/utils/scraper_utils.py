@@ -13,8 +13,7 @@ import os
 # Add the src directory to the Python path to allow imports from the entire src folder
 from pathlib import Path
 import sys
-import time
-from datetime import datetime, timezone
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 import signal
@@ -27,15 +26,15 @@ sys.path.append(str(ROOT_PATH))
 sys.path.append(str(SRC_PATH))
 
 from utils.http_requests_utils import get_headers
-from config.settings import SGX_COMPANY_API_URL, SGX_RESULTS_COUNT_API_URL, PROJECT_ROOT, ATTACHMENTS_BASE_URL, RAW_DATA_DIR, PLATFORM, PAGE_SIZE, MAX_PAGES, MAX_WORKERS
+from config.settings import SGX_COMPANY_API_URL, SGX_RESULTS_COUNT_API_URL, PROJECT_ROOT, ATTACHMENTS_BASE_URL, RAW_DATA_DIR, PLATFORM, PAGE_SIZE, MAX_PAGES, MAX_WORKERS, MAX_FILES_PER_COMPANY, CSS_URL, BACKOFF_FACTOR, REQUEST_TIMEOUT, MAX_RETRIES
 import utils.db_utils as db_utils
 from utils import document_worker
 from bs4 import BeautifulSoup
 
-@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=1, max=10))
+@retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_exponential(multiplier=BACKOFF_FACTOR, min=1, max=REQUEST_TIMEOUT))
 def get_search_results(company_name: str = "DBS GROUP HOLDINGS LTD",
-               periodstart: Optional[str] = "20250204_160000",
-               periodend: Optional[str] = "20251022_120000",
+               periodstart: Optional[str] = "20250104_160000",
+               periodend: Optional[str] = "20251021_120000",
                exactsearch: bool = True,
                pagestart: int = 0,
                pagesize: int = 20) -> Optional[dict]:
@@ -87,7 +86,7 @@ def extract_documents_list(response_json: dict) -> Optional[list]:
         print(f"Error extracting documents list: {e}")
         return None
     
-@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=1, max=10))
+@retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_exponential(multiplier=BACKOFF_FACTOR, min=1, max=REQUEST_TIMEOUT))
 def request_documents_count(company_name: str,
                         periodstart: Optional[str] = "20250204_160000",
                         periodend: Optional[str] = "20251022_120000",
@@ -125,12 +124,14 @@ def request_documents_count(company_name: str,
         print(f"Unexpected error: {e}")
         return None
 
-@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=1, max=10))
+@retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_exponential(multiplier=BACKOFF_FACTOR, min=1, max=REQUEST_TIMEOUT))
 def get_web_page(url: str) -> Optional[str]:
     """Fetch a web page and return its HTML content with retries."""
     response = requests.get(url, headers=get_headers(), timeout=10)
     response.raise_for_status()
     return response.text
+
+
 
 def store_web_page(html_content: str, path: str) -> None:
     """Store the fetched web page content into a local file."""
@@ -175,6 +176,10 @@ def get_attachments_url_list(html_content: Optional[str]) -> Optional[list]:
             #print("No attachment links found in the HTML content.")
             return None
 
+        # Check if the HTML content contains the specific string
+        if "if you are unable to view the above file, please click the link below" in html_content:
+            if len(attachments) == 2:
+                attachments.pop(0)
         #print(f"Attachment URLs extracted: {len(attachments)}")
         
         ### DEBUGGING OUTPUT
@@ -191,7 +196,7 @@ def get_attachments_url_list(html_content: Optional[str]) -> Optional[list]:
         print(f"Unexpected error: {e}")
         return None
 
-@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=1, max=10))
+@retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_exponential(multiplier=BACKOFF_FACTOR, min=1, max=REQUEST_TIMEOUT))
 def download_attachment(attachment_url: str, save_path: str) -> None:
     """Download an attachment from a URL and save it to a file with retries."""
     response = requests.get(attachment_url, headers=get_headers(), timeout=10)
@@ -230,79 +235,6 @@ def store_metadata_debug(metadata: dict, folder_path: str) -> None:
     except Exception as e:
         print(f"Error saving metadata: {e}")
 
-def process_document(document: dict, company_id: str) -> bool:
-    """Process a single document: fetch its web page, store it, and download attachments."""
-    try:
-        # Build document metadata dictionary
-        metadata = get_document_metadata(document)
-        metadata["company_id"] = company_id
-        
-        url = metadata.get("url")
-        if not url:
-            raise ValueError("Document URL is missing")
-        
-        wp = get_web_page(url)
-        
-        company_name_no_space = "_".join(metadata.get("company_name").replace(" ", "_").split())
-        filing_date_str = metadata.get("filing_date")
-        document_id = metadata.get('document_id')
-        file_type = metadata.get('file_type')
-
-        document_folder = os.path.join(RAW_DATA_DIR, PLATFORM, f"{company_id}_{company_name_no_space}", f"{file_type}" , f"{filing_date_str}_{document_id}")
-
-        #Transform filing_date in timestamp format
-        
-        if filing_date_str:
-            try:
-                filing_date = datetime.strptime(filing_date_str, "%Y%m%d").replace(tzinfo=timezone.utc)
-                
-                metadata["filing_date"] = filing_date
-                
-            except ValueError as e:
-                print(f"Error parsing filing_date: {e}")
-
-        wp_filename = "wp.html"
-        wp_path = os.path.join(document_folder, wp_filename)
-        
-        relative_path = os.path.relpath(wp_path, RAW_DATA_DIR)
-        metadata["file_path"] = relative_path
-        
-        try:
-            store_web_page(wp,  wp_path)
-        except Exception as e:
-            print(f"Error storing web page: {e}")   
-            return
-
-        filing_date_str_with_scores = filing_date.strftime("%Y-%m-%d")
-        metadata["file_name"] = f"{file_type} - {company_name_no_space} - [{filing_date_str_with_scores}]"
-        
-        
-        #print(f"Metadata for document {document.get('id')}: {metadata}")
-
-        att_list = get_attachments_url_list(wp)
-        #print(f"Attachment list: {att_list}")
-        if (att_list and len(att_list) > 0):
-            for att in (att_list or []):
-                att_filename = att.split("/")[-1]
-                att_path = os.path.join(document_folder, att_filename)
-                download_attachment(att, att_path)
-                
-                relative_att_path = os.path.relpath(att_path, RAW_DATA_DIR)
-                # Store relative path in metadata
-                if "supporting_file_paths" not in metadata:
-                    metadata["supporting_file_paths"] = []
-                metadata["supporting_file_paths"].append(relative_att_path)
-        else:
-            #print("No attachments found for this document.")
-            pass
-        
-        metadata["updated_at"] = datetime.now(timezone.utc)
-        #store_metadata_debug(metadata, document_folder) 
-        return metadata
-    except Exception as e:
-        print(f"Error processing document: {e}")
-        return None
-
 # Global flag to handle graceful shutdown
 shutdown_event = threading.Event()
 
@@ -340,6 +272,10 @@ def process_company(company_name: str, company_id: str):
         doc_list = extract_documents_list(response)
         if doc_list:
             all_documents.extend(doc_list)
+            if (len(all_documents) >= MAX_FILES_PER_COMPANY) and (MAX_FILES_PER_COMPANY > 0):
+                print(f"Reached maximum documents per company limit: {MAX_FILES_PER_COMPANY}")
+                all_documents = all_documents[:MAX_FILES_PER_COMPANY]
+                break
 
     print(f"Total documents collected: {len(all_documents)}")
     # Extract and print the list of document IDs for debugging
@@ -351,7 +287,9 @@ def process_company(company_name: str, company_id: str):
     # Process all documents using multithreading
     if all_documents:
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = [executor.submit(document_worker.process_document, doc, company_id) for doc in all_documents]
+            futures = []
+            for doc in all_documents:
+                futures.append(executor.submit(document_worker.process_document, doc, company_id))
 
             with tqdm(total=len(all_documents), desc="Processing documents") as pbar:
                 for future in as_completed(futures):
@@ -378,6 +316,42 @@ def process_company(company_name: str, company_id: str):
             print(f"Error storing metadata: {e}")
 
     # Further processing can be done here
+
+
+def download_and_store_css(css_url: str = CSS_URL) -> Optional[str]:
+    """Download a CSS file from the given URL and store it in the specified data directory.
+
+    Args:
+        css_url (str): The URL of the CSS file to download.
+
+    Returns:
+        Optional[str]: The relative path to the stored CSS file, or None if an error occurred.
+    """
+    try:
+        # Fetch the CSS content
+        css_content = get_web_page(css_url)
+        if not css_content:
+            print(f"Failed to fetch CSS content from {css_url}.")
+            return None
+            # Construct the relative path for the CSS file
+        css_filename = css_url.split("/")[-1]
+        relative_path = os.path.join("SGX", "_layouts", "1033", "styles", css_filename)
+        full_path = os.path.join(RAW_DATA_DIR, relative_path)
+
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
+        # Save the CSS content to the file
+        with open(full_path, "w", encoding="utf-8") as file:
+            file.write(css_content)
+
+        print(f"CSS file saved to {full_path}")
+        return relative_path
+
+    except Exception as e:
+        print(f"Error downloading or storing CSS file: {e}")
+        return None
+
 if __name__ == "__main__":
     company_name_1 = "DBS GROUP HOLDINGS LTD"
     company_name_2 = "ABR HOLDINGS LIMITED"
@@ -411,12 +385,30 @@ if __name__ == "__main__":
             "sn": None,
             "product_category": None
         }
-    
+
     '''
-    if process_document(document, "ID12345"):
+    with open("B:\\Workspace\\sgx-pipeline\\raw_data_storage\\SGX\\ID56789_ABR_HOLDINGS_LIMITED\\ANNC14\\20250321_SG250321OTHR1194\\wp.html", "r", encoding="utf-8") as file:
+        html = file.read()
+    '''
+    #att_list = get_attachments_url_list(html)
+    #print(f"Attachment list: {att_list}")
+    '''
+    metadata = process_document(document, "ID12345")
+    if metadata:
         print("Document processed successfully.")
+        print(metadata)
+        
     else:
         print("Document processing failed.")
     '''
 
-    process_company(company_name_2, "ID56789")
+    #process_company(company_name_2, "ID56789")
+
+    '''
+    results = get_search_results(company_name_2, "ID56789")
+    print(f"Search results: {results}")
+    doc_list = extract_documents_list(results)
+    print (f"Document list: {doc_list}")
+    '''
+
+    download_and_store_css("https://links.sgx.com/_layouts/1033/styles/infoviewstyle.css")

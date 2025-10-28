@@ -22,6 +22,7 @@ SGX_COMPANY_API_URL = os.getenv("SGX_COMPANY_API_URL", "https://api.sgx.com/anno
 SGX_RESULTS_COUNT_API_URL = os.getenv("SGX_RESULTS_COUNT_API_URL", "https://api.sgx.com/announcements/v1.1/company/count")
 CMS_URL = os.getenv("CMS_URL", "https://api2.sgx.com/content-api/?queryId=17d94f69435775a0d673d1b5328b0403ce4ad025:we_chat_qr_validator")
 ATTACHMENTS_BASE_URL = os.getenv("ATTACHMENTS_BASE_URL", "https://links.sgx.com")
+CSS_URL = os.getenv("CSS_URL", "https://links.sgx.com/_layouts/1033/styles/infoviewstyle.css")
 
 
 # MongoDB / queue settings

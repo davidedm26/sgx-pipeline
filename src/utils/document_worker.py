@@ -1,4 +1,4 @@
-from scraper_utils import get_document_metadata, get_web_page, store_web_page, get_attachments_url_list, download_attachment
+from scraper_utils import get_document_metadata, get_web_page, store_web_page, get_attachments_url_list, download_attachment, store_metadata_debug
 import os
 from config.settings import RAW_DATA_DIR, PLATFORM
 from datetime import datetime, timezone
@@ -55,25 +55,34 @@ def process_document(document: dict, company_id: str) -> bool:
 
         att_list = get_attachments_url_list(wp)
         #print(f"Attachment list: {att_list}")
-        if (att_list and len(att_list) > 0):
-            for att in (att_list or []):
-                att_filename = att.split("/")[-1]
-                for x, y in [("%20", "_"), (":", "_"), ("?", "_"), ("&", "_"), ("=", "_")]:
-                    att_filename = att_filename.replace(x, y)
-                att_path = os.path.join(document_folder, att_filename)
-                download_attachment(att, att_path)
-                
-                relative_att_path = os.path.relpath(att_path, RAW_DATA_DIR)
-                # Store relative path in metadata
-                if "supporting_file_paths" not in metadata:
-                    metadata["supporting_file_paths"] = []
-                metadata["supporting_file_paths"].append(relative_att_path)
+        import concurrent.futures
+
+        if att_list and len(att_list) > 0:
+            def process_attachment(att):
+                try:
+                    att_filename = "_".join(att.split("/")[-1].split("_")[1:])
+                    for x, y in [("%20", "_"), (":", "_"), ("?", "_"), ("&", "_"), ("=", "_")]:
+                        att_filename = att_filename.replace(x, y)
+                    att_path = os.path.join(document_folder, att_filename)
+                    download_attachment(att, att_path)
+
+                    relative_att_path = os.path.relpath(att_path, RAW_DATA_DIR)
+                    return relative_att_path
+                except Exception as e:
+                    print(f"Error downloading attachment {att}: {e}")
+                    return None
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                results = list(executor.map(process_attachment, att_list))
+
+            # Filter out None results and store relative paths in metadata
+            metadata["supporting_file_paths"] = [path for path in results if path]
         else:
-            #print("No attachments found for this document.")
-            pass
+            # No attachments found
+            metadata["supporting_file_paths"] = []
         
         metadata["updated_at"] = datetime.now(timezone.utc)
-        #store_metadata_debug(metadata, document_folder) 
+        store_metadata_debug(metadata, document_folder) 
         return metadata
     except Exception as e:
         print(f"Error processing document: {e}")
