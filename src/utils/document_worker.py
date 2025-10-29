@@ -1,22 +1,24 @@
-from scraper_utils import get_document_metadata, get_web_page, store_web_page, get_attachments_url_list, download_attachment, store_metadata_debug
-import os
 from config.settings import RAW_DATA_DIR, PLATFORM
 from datetime import datetime, timezone
+import os
 
 
 def process_document(document: dict, company_id: str) -> bool:
     """Process a single document: fetch its web page, store it, and download attachments."""
     try:
+        # Importa funzioni necessarie localmente per evitare dipendenze circolari
+        from utils.scraping_utils import store_web_page, get_attachments_url_list, download_attachment, store_metadata_debug, get_web_page, get_document_metadata
+
         # Build document metadata dictionary
         metadata = get_document_metadata(document)
         metadata["company_id"] = company_id
-        
+
         url = metadata.get("url")
         if not url:
             raise ValueError("Document URL is missing")
-        
+
         wp = get_web_page(url)
-        
+
         company_name_no_space = "_".join(metadata.get("company_name").replace(" ", "_").split())
         filing_date_str = metadata.get("filing_date")
         document_id = metadata.get('document_id')
@@ -25,36 +27,32 @@ def process_document(document: dict, company_id: str) -> bool:
         document_folder = os.path.join(RAW_DATA_DIR, PLATFORM, f"{company_id}_{company_name_no_space}", f"{file_type}" , f"{filing_date_str}_{document_id}")
 
         #Transform filing_date in timestamp format
-        
+
         if filing_date_str:
             try:
                 filing_date = datetime.strptime(filing_date_str, "%Y%m%d").replace(tzinfo=timezone.utc)
-                
+
                 metadata["filing_date"] = filing_date
-                
+
             except ValueError as e:
                 print(f"Error parsing filing_date: {e}")
 
         wp_filename = "wp.html"
         wp_path = os.path.join(document_folder, wp_filename)
-        
+
         relative_path = os.path.relpath(wp_path, RAW_DATA_DIR)
         metadata["file_path"] = relative_path
-        
+
         try:
-            store_web_page(wp,  wp_path)
+            store_web_page(wp, wp_path)
         except Exception as e:
             print(f"Error storing web page: {e}")   
             return
 
         filing_date_str_with_scores = filing_date.strftime("%Y-%m-%d")
         metadata["file_name"] = f"{file_type} - {company_name_no_space} - [{filing_date_str_with_scores}]"
-        
-        
-        #print(f"Metadata for document {document.get('id')}: {metadata}")
 
         att_list = get_attachments_url_list(wp)
-        #print(f"Attachment list: {att_list}")
         import concurrent.futures
 
         if att_list and len(att_list) > 0:
@@ -80,7 +78,7 @@ def process_document(document: dict, company_id: str) -> bool:
         else:
             # No attachments found
             metadata["supporting_file_paths"] = []
-        
+
         metadata["updated_at"] = datetime.now(timezone.utc)
         store_metadata_debug(metadata, document_folder) 
         return metadata

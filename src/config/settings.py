@@ -23,12 +23,14 @@ SGX_RESULTS_COUNT_API_URL = os.getenv("SGX_RESULTS_COUNT_API_URL", "https://api.
 CMS_URL = os.getenv("CMS_URL", "https://api2.sgx.com/content-api/?queryId=17d94f69435775a0d673d1b5328b0403ce4ad025:we_chat_qr_validator")
 ATTACHMENTS_BASE_URL = os.getenv("ATTACHMENTS_BASE_URL", "https://links.sgx.com")
 CSS_URL = os.getenv("CSS_URL", "https://links.sgx.com/_layouts/1033/styles/infoviewstyle.css")
+COMPANYLIST_URL = os.getenv("COMPANYLIST_URL", "https://api.sgx.com/corporateinformation/v1.0/metalist")
+CORPORATEINFO_URL = os.getenv("CORPORATEINFO_URL", "https://api.sgx.com/corporateinformation/v1.0/")
 
 
 # MongoDB / queue settings
 MONGODB_URI = os.getenv("MONGODB_URI") or os.getenv("MONGO_URI") or os.getenv("MONGOURL")
 MONGODB_DATABASE = os.getenv("MONGODB_DATABASE") or os.getenv("MONGO_DB") or os.getenv("MONGO_DATABASE")
-COMPANIES_QUEUE_COLLECTION = os.getenv("COMPANIES_QUEUE_COLLECTION") or os.getenv("MONGODB_COLLECTION") or os.getenv("MONGODB_COLLECTION") or "companies"
+COMPANIES_QUEUE_COLLECTION = os.getenv("COMPANIES_QUEUE_COLLECTION") or "queue"
 PUBLIC_DOCUMENTS_COLLECTION = os.getenv("PUBLIC_DOCUMENTS_COLLECTION") or os.getenv("PUBLIC_DOCUMENTS") or os.getenv("FILES_COLLECTION") or "files"
 COMPANIES_PROD_COLLECTION = os.getenv("COMPANIES_PROD_COLLECTION") or "sgx-documents-prod"
 COMPANIES_UAT_COLLECTION = os.getenv("COMPANIES_UAT_COLLECTION") or "sgx-documents-uat"
@@ -39,11 +41,15 @@ PAGE_SIZE = int(os.getenv("PAGE_SIZE", "10"))
 MAX_PAGES = int(os.getenv("MAX_PAGES", "0"))  # 0 means no limit
 MAX_COMPANIES = int(os.getenv("MAX_COMPANIES", "0"))  # 0 means no limit
 MAX_FILES_PER_COMPANY = int(os.getenv("MAX_FILES_PER_COMPANY", "20"))  # Max files to download per company
+PERIOD_START = os.getenv("PERIOD_START", "20051030_160000")
+PERIOD_END = os.getenv("PERIOD_END", "20251028_155959")
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "5"))  # Max concurrent workers for downloading files
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "5"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "5"))
 BACKOFF_FACTOR = int(os.getenv("BACKOFF_FACTOR", "2"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "10"))  # Timeout for HTTP requests in seconds
+
+
 
 UAT_PROD_MODE = os.getenv("UAT_PROD_MODE")  # UAT or PROD
 

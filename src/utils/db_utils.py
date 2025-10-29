@@ -9,8 +9,6 @@ from pymongo import MongoClient
 from pymongo.errors import BulkWriteError
 from config.settings import MONGODB_URI, MONGODB_DATABASE, COMPANIES_QUEUE_COLLECTION, PUBLIC_DOCUMENTS_COLLECTION, COMPANIES_UAT_COLLECTION, COMPANIES_PROD_COLLECTION
 
-
-
 print(f"Using MongoDB service at { MONGODB_URI }")
 print(f"Using database: { MONGODB_DATABASE  }")
 print(f"Using queue collection: {COMPANIES_QUEUE_COLLECTION }")
@@ -21,13 +19,14 @@ print(f"Using company collection [PROD]: { COMPANIES_PROD_COLLECTION }")
 def create_indexes(db):
     """Create indexes for MongoDB collections."""
     from pymongo.errors import PyMongoError
+
     try:
         db[COMPANIES_QUEUE_COLLECTION].create_index(
-            [("company_id", 1)], unique=True, background=True
+            [("company_id", 1), ("name", 1)], unique=True, background=True
         )
-        db[COMPANIES_QUEUE_COLLECTION].create_index(
-            [("company_name", 1)], unique=True, background=True
-        )
+        #db[COMPANIES_QUEUE_COLLECTION].create_index(
+        #    [("name", 1)], unique=True, background=True
+        #)
 
         db[PUBLIC_DOCUMENTS_COLLECTION].create_index(
             [("document_id", 1)], unique=True, background=True
@@ -42,14 +41,14 @@ def create_indexes(db):
             [("company_id", 1)], unique=True, background=True
         )
         db[COMPANIES_PROD_COLLECTION].create_index(
-            [("company_name", 1)], unique=True, background=True
+            [("name", 1)], unique=True, background=True
         )
 
         db[COMPANIES_UAT_COLLECTION].create_index(
             [("company_id", 1)], unique=True, background=True
         )
         db[COMPANIES_UAT_COLLECTION].create_index(
-            [("company_name", 1)], unique=True, background=True
+            [("name", 1)], unique=True, background=True
         )
 
         print("Indexes created successfully.")
@@ -87,7 +86,7 @@ def store_metadata_batch(metadata_list: list) -> None:
             duplicate_files = []
             for error in bwe.details.get("writeErrors", []):
                 # Manage file_name duplicates by appending a counter
-                print(f"Duplicate error details: {error}")
+                #print(f"Duplicate error details: {error}")
                 
                 if error.get("code") == 11000 and error.get("keyPattern") == {"document_id": 1}:
                     # Handle duplicate based on document_id
@@ -107,9 +106,11 @@ def store_metadata_batch(metadata_list: list) -> None:
 
                         if len(new_supporting_file_paths) > len(existing_supporting_file_paths):
                             try:
+                                # Exclude the '_id' field from the update to avoid modifying the immutable field
+                                duplicate_file_without_id = {k: v for k, v in duplicate_file.items() if k != "_id"}
                                 collection.update_one(
                                     {"document_id": doc_id},
-                                    {"$set": duplicate_file}
+                                    {"$set": duplicate_file_without_id}
                                 )
                                 print(f"Updated document_id {doc_id} with updated supporting_file_paths.")
                             except Exception as e:
@@ -142,5 +143,59 @@ def store_metadata_batch(metadata_list: list) -> None:
     except Exception as e:
         print(f"Batch insert error: {e}")
 
-__all__ = ["db", "connect_mongo", "store_metadata_batch"]
+def store_company_queue(companylist):
+    # Implement the logic to store the company queue in the database
+    if not companylist:
+        print("No companies to store.")
+        return
 
+    print(f"Passed {len(companylist)} entries to the inserting function.")
+    db = connect_mongo()
+    if db is None:
+        raise ValueError("Database connection error.")
+
+    collection = db[COMPANIES_QUEUE_COLLECTION]
+    from datetime import datetime, timezone
+    current_timestamp = datetime.now(timezone.utc)  # Get the current UTC timestamp
+
+    for company in companylist:
+        company["processed"] = False
+        company["status"] = "pending"
+        company["updated_at"] = current_timestamp
+
+    try:
+        result = collection.insert_many(companylist, ordered=False)
+        print(f"Inserted {len(result.inserted_ids)} companies into the queue.")
+    except BulkWriteError as bwe:
+        duplicate_count = sum(1 for error in bwe.details.get("writeErrors", []) if error.get("code") == 11000)
+        added_count = len(companylist) - duplicate_count
+        if added_count > 0:
+            print(f"Inserted {added_count} new companies into the queue.")
+        if duplicate_count > 0:
+            print(f"{duplicate_count} companies already exist in the queue. Skipping duplicates.")
+    except Exception as e:
+        print(f"Error inserting companies: {e}")
+
+def get_pending_companies():
+    # Implement the logic to retrieve pending companies from the database
+    db = connect_mongo()
+    if db is None:
+        raise ValueError("Database connection error.")
+
+    collection = db[COMPANIES_QUEUE_COLLECTION]
+    try:
+        pending_companies = list(collection.find({"status": "pending"}))
+        print(f"Retrieved {len(pending_companies)} pending companies from the queue.")
+        return pending_companies
+    except Exception as e:
+        print(f"Error retrieving pending companies: {e}")
+        return []
+
+__all__ = ["db", "connect_mongo", "store_metadata_batch", "get_pending_companies"]
+
+
+if __name__ == "__main__":
+    
+    # Test retrieving pending companies
+    pending_companies = get_pending_companies()
+    print(f"Pending companies: {len(pending_companies)}")

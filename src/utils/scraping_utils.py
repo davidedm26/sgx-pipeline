@@ -16,7 +16,6 @@ import sys
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
-import signal
 import threading
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -26,18 +25,18 @@ sys.path.append(str(ROOT_PATH))
 sys.path.append(str(SRC_PATH))
 
 from utils.http_requests_utils import get_headers
-from config.settings import SGX_COMPANY_API_URL, SGX_RESULTS_COUNT_API_URL, PROJECT_ROOT, ATTACHMENTS_BASE_URL, RAW_DATA_DIR, PLATFORM, PAGE_SIZE, MAX_PAGES, MAX_WORKERS, MAX_FILES_PER_COMPANY, CSS_URL, BACKOFF_FACTOR, REQUEST_TIMEOUT, MAX_RETRIES
+from config.settings import SGX_COMPANY_API_URL, SGX_RESULTS_COUNT_API_URL, PROJECT_ROOT, ATTACHMENTS_BASE_URL, RAW_DATA_DIR, PLATFORM, PAGE_SIZE, MAX_PAGES, MAX_WORKERS, MAX_FILES_PER_COMPANY, CSS_URL, BACKOFF_FACTOR, REQUEST_TIMEOUT, MAX_RETRIES, PERIOD_END, PERIOD_START
 import utils.db_utils as db_utils
-from utils import document_worker
 from bs4 import BeautifulSoup
 
 @retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_exponential(multiplier=BACKOFF_FACTOR, min=1, max=REQUEST_TIMEOUT))
-def get_search_results(company_name: str = "DBS GROUP HOLDINGS LTD",
-               periodstart: Optional[str] = "20250104_160000",
-               periodend: Optional[str] = "20251021_120000",
+def get_search_results(company_name: str = "",
+               periodstart: Optional[str] = PERIOD_START,
+               periodend: Optional[str] = PERIOD_END,
                exactsearch: bool = True,
                pagestart: int = 0,
-               pagesize: int = 20) -> Optional[dict]:
+               pagesize: int = 20,
+               url: str = SGX_COMPANY_API_URL) -> Optional[dict]:
     """Search announcements for a company and return the response as JSON.
 
     By default uses the previous hardcoded example values. Returns the JSON
@@ -54,7 +53,7 @@ def get_search_results(company_name: str = "DBS GROUP HOLDINGS LTD",
 
     try:
         
-        documents_response = requests.get(SGX_COMPANY_API_URL, params=params, headers=get_headers())
+        documents_response = requests.get(url, params=params, headers=get_headers())
         documents_response.raise_for_status()
         return documents_response.json()
     except requests.exceptions.RequestException as req_err:
@@ -88,8 +87,8 @@ def extract_documents_list(response_json: dict) -> Optional[list]:
     
 @retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_exponential(multiplier=BACKOFF_FACTOR, min=1, max=REQUEST_TIMEOUT))
 def request_documents_count(company_name: str,
-                        periodstart: Optional[str] = "20250204_160000",
-                        periodend: Optional[str] = "20251022_120000",
+                        periodstart: Optional[str] = PERIOD_START,
+                        periodend: Optional[str] = PERIOD_END,
                         exactsearch: bool = True) -> Optional[int]:
     """Request only the count of announcements for a company.
 
@@ -238,84 +237,7 @@ def store_metadata_debug(metadata: dict, folder_path: str) -> None:
 # Global flag to handle graceful shutdown
 shutdown_event = threading.Event()
 
-def signal_handler(sig, frame):
-    """Signal handler to set the shutdown event."""
-    print("\nGraceful shutdown initiated. Waiting for threads to complete...")
-    shutdown_event.set()
 
-# Register the signal handler for SIGINT (Ctrl+C)
-signal.signal(signal.SIGINT, signal_handler)
-
-def process_company(company_name: str, company_id: str):
-    """Process all documents for a given company."""
-    n_results = request_documents_count(company_name=company_name)
-    if n_results is None:
-        print(f"Failed to retrieve document count for {company_name}")
-        return
-
-    n_pages = (n_results + PAGE_SIZE - 1) // PAGE_SIZE  # Calculate number of pages needed
-    all_documents = []
-
-    # Collect all documents from all pages
-    for page_num in range(min(n_pages, MAX_PAGES) if MAX_PAGES > 0 else n_pages):
-        if shutdown_event.is_set():
-            print("Shutdown event detected. Exiting document collection loop.")
-            return
-
-        print(f"Processing page {page_num + 1}/{n_pages} (page size {PAGE_SIZE}) for {company_name}")
-        response = get_search_results(company_name=company_name, pagesize=PAGE_SIZE, pagestart=page_num)
-
-        if not response:
-            print(f"Failed to retrieve search results for {company_name}")
-            continue
-
-        doc_list = extract_documents_list(response)
-        if doc_list:
-            all_documents.extend(doc_list)
-            if (len(all_documents) >= MAX_FILES_PER_COMPANY) and (MAX_FILES_PER_COMPANY > 0):
-                print(f"Reached maximum documents per company limit: {MAX_FILES_PER_COMPANY}")
-                all_documents = all_documents[:MAX_FILES_PER_COMPANY]
-                break
-
-    print(f"Total documents collected: {len(all_documents)}")
-    # Extract and print the list of document IDs for debugging
-    document_ids = [doc.get("ref_id", "Unknown ID") for doc in all_documents]
-    print(f"Document IDs: {document_ids}")
-
-    all_metadata = []
-    
-    # Process all documents using multithreading
-    if all_documents:
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = []
-            for doc in all_documents:
-                futures.append(executor.submit(document_worker.process_document, doc, company_id))
-
-            with tqdm(total=len(all_documents), desc="Processing documents") as pbar:
-                for future in as_completed(futures):
-                    if shutdown_event.is_set():
-                        print("Shutdown event detected. Cancelling remaining tasks.")
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        return
-
-                    try:
-                        doc_metadata = future.result()
-                        if doc_metadata:
-                            all_metadata.append(doc_metadata)
-                    except Exception as e:
-                        print(f"Error processing document: {e}")
-                    finally:
-                        pbar.update(1)
-                        
-        # Store all metadata in the database
-        from utils.db_utils import store_metadata_batch
-
-        try:
-            store_metadata_batch(all_metadata)
-        except Exception as e:
-            print(f"Error storing metadata: {e}")
-
-    # Further processing can be done here
 
 
 def download_and_store_css(css_url: str = CSS_URL) -> Optional[str]:
@@ -402,7 +324,7 @@ if __name__ == "__main__":
         print("Document processing failed.")
     '''
 
-    #process_company(company_name_2, "ID56789")
+    process_company(company_name_2, "ID56789")
 
     '''
     results = get_search_results(company_name_2, "ID56789")
@@ -411,4 +333,4 @@ if __name__ == "__main__":
     print (f"Document list: {doc_list}")
     '''
 
-    download_and_store_css("https://links.sgx.com/_layouts/1033/styles/infoviewstyle.css")
+    #download_and_store_css("https://links.sgx.com/_layouts/1033/styles/infoviewstyle.css")
