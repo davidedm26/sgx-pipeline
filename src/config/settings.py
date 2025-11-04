@@ -25,7 +25,7 @@ ATTACHMENTS_BASE_URL = os.getenv("ATTACHMENTS_BASE_URL", "https://links.sgx.com"
 CSS_URL = os.getenv("CSS_URL", "https://links.sgx.com/_layouts/1033/styles/infoviewstyle.css")
 COMPANYLIST_URL = os.getenv("COMPANYLIST_URL", "https://api.sgx.com/corporateinformation/v1.0/metalist")
 CORPORATEINFO_URL = os.getenv("CORPORATEINFO_URL", "https://api.sgx.com/corporateinformation/v1.0/")
-
+COMPANY_PAGE_URL = os.getenv("COMPANY_PAGE_URL", "https://links.sgx.com/1.0.0/corporate-information")
 
 # MongoDB / queue settings
 MONGODB_URI = os.getenv("MONGODB_URI") or os.getenv("MONGO_URI") or os.getenv("MONGOURL")
@@ -37,12 +37,25 @@ COMPANIES_UAT_COLLECTION = os.getenv("COMPANIES_UAT_COLLECTION") or "sgx-documen
 UNLISTED_COMPANIES_COLLECTION = os.getenv("UNLISTED_COMPANIES_COLLECTION") or "sgx-documents-unlisted"
 
 
-PAGE_SIZE = int(os.getenv("PAGE_SIZE", "10"))
-MAX_PAGES = int(os.getenv("MAX_PAGES", "0"))  # 0 means no limit
-MAX_COMPANIES = int(os.getenv("MAX_COMPANIES", "0"))  # 0 means no limit
+FILES_PAGE_SIZE = int(os.getenv("FILES_PAGE_SIZE", "10"))
+FILES_MAX_PAGES = int(os.getenv("FILES_MAX_PAGES", "0"))  # 0 means no limit
 MAX_FILES_PER_COMPANY = int(os.getenv("MAX_FILES_PER_COMPANY", "20"))  # Max files to download per company
-PERIOD_START = os.getenv("PERIOD_START", "20051030_160000")
-PERIOD_END = os.getenv("PERIOD_END", "20251028_155959")
+
+COMPANY_MAX_PAGES = int(os.getenv("COMPANY_MAX_PAGES", "0"))  # 0 means no limit
+COMPANY_PAGE_SIZE = int(os.getenv("COMPANY_PAGE_SIZE", "10"))
+MAX_COMPANIES = int(os.getenv("MAX_COMPANIES", "0"))  # 0 means no limit
+
+
+
+#PERIOD_START=20151030_160000
+#PERIOD_END=20251104_155959
+import datetime as date
+
+today = date.datetime.now()
+PERIOD_END = today.strftime("%Y%m%d_%H%M%S")
+PERIOD_START = (today - date.timedelta(days=3650)).strftime("%Y%m%d_%H%M%S")
+#print(f"PERIOD_START set to {PERIOD_START}, PERIOD_END set to {PERIOD_END}")
+
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "5"))  # Max concurrent workers for downloading files
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "5"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "5"))
@@ -51,7 +64,7 @@ REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "10"))  # Timeout for HTTP re
 
 
 
-UAT_PROD_MODE = os.getenv("UAT_PROD_MODE")  # UAT or PROD
+PROD_MODE = os.getenv("PROD_MODE")  # UAT or PROD
 
 # S3 / storage
 S3_ENABLED = str(os.getenv("S3_ENABLED", "false")).lower() in ("1", "true", "yes")

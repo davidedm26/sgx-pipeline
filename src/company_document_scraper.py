@@ -1,10 +1,12 @@
-from config.settings import PAGE_SIZE, MAX_PAGES, MAX_WORKERS, MAX_FILES_PER_COMPANY, BATCH_SIZE
+from config.settings import FILES_PAGE_SIZE, FILES_MAX_PAGES, MAX_WORKERS, MAX_FILES_PER_COMPANY, BATCH_SIZE
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
+from tenacity import RetryError
+import requests
 from utils.db_utils import store_metadata_batch
 
 
-def process_company(company_name: str, company_id: str):
+def process_company_files(company_name: str, company_id: str):
     """Process all documents for a given company."""
     # Import `document_worker` locally to avoid circular dependencies
     from utils import document_worker
@@ -13,30 +15,46 @@ def process_company(company_name: str, company_id: str):
         get_search_results,
         extract_documents_list,
     )
+    
     n_results = request_documents_count(company_name=company_name)
-    tqdm.write(f"Number of documents found for {company_name}: {n_results}")
+    
     if n_results is None:
         tqdm.write(f"Failed to retrieve document count for {company_name}")
-        return
-
-    n_pages = (n_results + PAGE_SIZE - 1) // PAGE_SIZE  # Calculate number of pages needed
+        raise ValueError("Could not get document count")
+    
+    tqdm.write(f"Number of documents found for {company_name}: {n_results}")
+    
+    n_pages = (n_results + FILES_PAGE_SIZE - 1) // FILES_PAGE_SIZE  # Calculate number of pages needed
     all_documents = []
 
     # Collect all documents from all pages
-    for page_num in range(min(n_pages, MAX_PAGES) if MAX_PAGES > 0 else n_pages):
+    for page_num in range(min(n_pages, FILES_MAX_PAGES) if FILES_MAX_PAGES > 0 else n_pages):
         from utils.scraping_utils import shutdown_event
         if shutdown_event.is_set():
             tqdm.write("Shutdown event detected. Exiting document collection loop.")
             return
 
-        tqdm.write(f"Processing page {page_num + 1}/{n_pages} (page size {PAGE_SIZE}) for {company_name}")
-        response = get_search_results(company_name=company_name, pagesize=PAGE_SIZE, pagestart=page_num)
+        tqdm.write(f"Processing page {page_num + 1}/{n_pages} (page size {FILES_PAGE_SIZE}) for {company_name}")
+        
+        try:
+            response = get_search_results(company_name=company_name, pagesize=FILES_PAGE_SIZE, pagestart=page_num)
+        except Exception as e:
+            tqdm.write(f"Error retrieving search results for {company_name} on page {page_num + 1}: {e}")
+            raise e
+            #break
 
         if not response:
             tqdm.write(f"Failed to retrieve search results for {company_name}")
-            continue
+            raise ValueError("No response received")
+
+        # if response.get('data') is None:
+        #    raise ValueError("No data found in response")
+        if response.get('meta', {}).get('code') != "200":
+            raise ValueError("Error code in response")
 
         doc_list = extract_documents_list(response)
+
+        
         if doc_list:
             all_documents.extend(doc_list)
             if (len(all_documents) >= MAX_FILES_PER_COMPANY) and (MAX_FILES_PER_COMPANY > 0):
@@ -44,7 +62,7 @@ def process_company(company_name: str, company_id: str):
                 all_documents = all_documents[:MAX_FILES_PER_COMPANY]
                 break
 
-    tqdm.write(f"Total documents collected: {len(all_documents)}")
+    tqdm.write(f"Total documents collected for {company_name}: {len(all_documents)}")
     # Extract and print the list of document IDs for debugging
     document_ids = [doc.get("ref_id", "Unknown ID") for doc in all_documents]
     tqdm.write(f"Document IDs: {document_ids}")
@@ -58,7 +76,7 @@ def process_company(company_name: str, company_id: str):
             for doc in all_documents:
                 futures.append(executor.submit(document_worker.process_document, doc, company_id))
 
-            with tqdm(total=len(all_documents), desc="Processing documents") as pbar:
+            with tqdm(total=len(all_documents), desc=f"Processing documents for {company_name}") as pbar:
                 for future in as_completed(futures):
                     if shutdown_event.is_set():
                         tqdm.write("Shutdown event detected. Cancelling remaining tasks.")
@@ -77,6 +95,13 @@ def process_company(company_name: str, company_id: str):
                                     tqdm.write(f"Saved {len(batch_to_store)} new documents in sgx-public-documents-granular.")
                                 except Exception as e:
                                     tqdm.write(f"Error storing metadata batch: {e}")
+                    except RetryError as re:
+                        # Tenacity reports a RetryError when retries are exhausted if reraise is False.
+                        # With reraise=True on the decorator, this block may not be hit; we keep it for safety.
+                        tqdm.write(f"Request failed after retries: {re}")
+                    except requests.exceptions.RequestException as rexc:
+                        # network-related exception from requests (if reraise=True on retry decorators)
+                        tqdm.write(f"Network error during document processing: {rexc}")
                     except Exception as e:
                         tqdm.write(f"Error processing document: {e}")
                     finally:
@@ -91,6 +116,7 @@ def process_company(company_name: str, company_id: str):
             
 if __name__ == "__main__":
     # Example usage
-    company_name = "BONVESTS HOLDINGS LIMITED"
-    company_id = "981"
-    process_company(company_name, company_id)
+    company_name = "17LIVE GROUP LIMITED"
+    company_id = "2995"
+    process_company_files(company_name, company_id)
+    

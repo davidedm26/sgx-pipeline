@@ -2,7 +2,8 @@ from typing import Any, Dict, Optional
 import requests
 import random
 
-from config.settings import CMS_URL
+from config.settings import CMS_URL, MAX_RETRIES, BACKOFF_FACTOR, REQUEST_TIMEOUT
+from tenacity import retry, stop_after_attempt, wait_exponential  
 
 # In-memory token cache similar to the client-side _token
 _CACHED_SGX_TOKEN: Optional[str] = None
@@ -60,6 +61,7 @@ def get_headers(overrides: Optional[Dict[str, str]] = None) -> Dict[str, str]:
 
     return headers
 
+@retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_exponential(multiplier=BACKOFF_FACTOR, min=1, max=REQUEST_TIMEOUT))
 def fetch_sgx_token(cms_url: str = CMS_URL,
                     session: Optional[requests.Session] = None,
                     timeout: int = 10) -> Optional[str]:

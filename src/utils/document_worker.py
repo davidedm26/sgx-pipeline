@@ -41,7 +41,12 @@ def process_document(document: dict, company_id: str) -> bool:
         wp_path = os.path.join(document_folder, wp_filename)
 
         relative_path = os.path.relpath(wp_path, RAW_DATA_DIR)
-        metadata["file_path"] = relative_path
+        
+        #metadata["file_path"] = relative_path
+        
+        
+        from utils.path_utils import convert_path_to_linux_format
+        metadata["file_path"] = convert_path_to_linux_format(relative_path)
 
         try:
             store_web_page(wp, wp_path)
@@ -67,7 +72,7 @@ def process_document(document: dict, company_id: str) -> bool:
                     relative_att_path = os.path.relpath(att_path, RAW_DATA_DIR)
                     return relative_att_path
                 except Exception as e:
-                    print(f"Error downloading attachment {att}: {e}")
+                    print(f"Error downloading attachment {att}, {att_path}: {e}")
                     return None
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
@@ -77,10 +82,10 @@ def process_document(document: dict, company_id: str) -> bool:
             metadata["supporting_file_paths"] = [path for path in results if path]
         else:
             # No attachments found
-            metadata["supporting_file_paths"] = []
+            metadata["supporting_file_paths"] = None
 
         metadata["updated_at"] = datetime.now(timezone.utc)
-        store_metadata_debug(metadata, document_folder) 
+        #store_metadata_debug(metadata, document_folder) 
         return metadata
     except Exception as e:
         print(f"Error processing document: {e}")
