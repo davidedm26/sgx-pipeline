@@ -27,7 +27,7 @@ sys.path.append(str(ROOT_PATH))
 sys.path.append(str(SRC_PATH))
 
 from utils.http_requests_utils import get_headers
-from config.settings import SGX_COMPANY_API_URL, SGX_RESULTS_COUNT_API_URL, ATTACHMENTS_BASE_URL, RAW_DATA_DIR, PLATFORM, CSS_URL, BACKOFF_FACTOR, REQUEST_TIMEOUT, MAX_RETRIES, PERIOD_END, PERIOD_START, MAX_WORKERS  
+from config.settings import SGX_COMPANY_API_URL, SGX_RESULTS_COUNT_API_URL, COMPANY_LIST_URL, ATTACHMENTS_BASE_URL, RAW_DATA_DIR, PLATFORM, CSS_URL, BACKOFF_FACTOR, REQUEST_TIMEOUT, MAX_RETRIES, PERIOD_END, PERIOD_START, MAX_WORKERS  
 import utils.db_utils as db_utils
 from bs4 import BeautifulSoup
 
@@ -60,6 +60,8 @@ def get_search_results(company_name: str = "",
         return documents_response.json()
     except RequestException as e:
         print(f"Error fetching search results: {e}")
+        from utils.http_requests_utils import fetch_sgx_token
+        fetch_sgx_token(force_new=True)  # Refresh token on error
         raise 
 
 def extract_documents_list(response_json: dict) -> Optional[list]:
@@ -85,7 +87,7 @@ def extract_documents_list(response_json: dict) -> Optional[list]:
 def request_documents_count(company_name: str,
                         periodstart: Optional[str] = PERIOD_START,
                         periodend: Optional[str] = PERIOD_END,
-                        exactsearch: bool = True) -> Optional[int]:
+                        exactsearch: bool = False) -> Optional[int]:
     """Request only the count of announcements for a company.
 
     Returns the count as an integer, or None on failure.
@@ -96,10 +98,17 @@ def request_documents_count(company_name: str,
         "value": company_name,
         "exactsearch": str(exactsearch).lower(),
     }
+    
+    try:
+        count_response = requests.get(SGX_RESULTS_COUNT_API_URL, params=params, headers=get_headers())
+        count_response.raise_for_status()
+        data = count_response.json()
 
-    count_response = requests.get(SGX_RESULTS_COUNT_API_URL, params=params, headers=get_headers())
-    count_response.raise_for_status()
-    data = count_response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching document count: {e}")
+        from utils.http_requests_utils import fetch_sgx_token
+        fetch_sgx_token(force_new=True)  # Refresh token on error
+        raise
 
     # Extract the count from the 'data' field
     count = data.get("data")
@@ -118,6 +127,8 @@ def get_web_page(url: str) -> Optional[str]:
         return response.text
     except requests.exceptions.RequestException as e:
        print(f"Error fetching web page: {e}")
+       from utils.http_requests_utils import fetch_sgx_token
+       fetch_sgx_token(force_new=True)  # Refresh token on error
        raise e
 
 def store_web_page(html_content: str, path: str) -> None:
@@ -188,11 +199,17 @@ def get_attachments_url_list(html_content: Optional[str]) -> Optional[list]:
 @retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_exponential(multiplier=BACKOFF_FACTOR, min=1, max=REQUEST_TIMEOUT), reraise=True)
 def download_attachment(attachment_url: str, save_path: str) -> None:
     """Download an attachment from a URL and save it to a file with retries."""
-    response = requests.get(attachment_url, headers=get_headers(), timeout=10)
-    response.raise_for_status()
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    with open(save_path, "wb") as file:
-        file.write(response.content)
+    try:
+        response = requests.get(attachment_url, headers=get_headers(), timeout=10)
+        response.raise_for_status()
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        with open(save_path, "wb") as file:
+            file.write(response.content)
+    except requests.exceptions.RequestException as e:
+        print(f"Error downloading attachment: {e}")
+        from utils.http_requests_utils import fetch_sgx_token
+        fetch_sgx_token(force_new=True)  # Refresh token on error
+        raise
 
 def get_document_metadata(document: dict) -> dict:
     """Builds and returns a metadata dictionary for a document."""
@@ -223,6 +240,10 @@ def store_metadata_debug(metadata: dict, folder_path: str) -> None:
         #print(f"Metadata saved to {metadata_path}")
     except Exception as e:
         print(f"Error saving metadata: {e}")
+
+
+    
+
 
 # Global flag to handle graceful shutdown
 shutdown_event = threading.Event()

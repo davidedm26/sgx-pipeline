@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27018"
+    volumes:
+      - ./db:/data/db
+
+  etl:
+    build: .
+    container_name: sgx-scraper
+    depends_on:
+      - mongodb
+    volumes:
+      - ./container_data_storage:/app/data
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_DATABASE: financial-news-docker
+    tty: true
+    stdin_open: true

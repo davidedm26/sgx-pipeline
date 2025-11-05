@@ -26,6 +26,7 @@ CSS_URL = os.getenv("CSS_URL", "https://links.sgx.com/_layouts/1033/styles/infov
 COMPANYLIST_URL = os.getenv("COMPANYLIST_URL", "https://api.sgx.com/corporateinformation/v1.0/metalist")
 CORPORATEINFO_URL = os.getenv("CORPORATEINFO_URL", "https://api.sgx.com/corporateinformation/v1.0/")
 COMPANY_PAGE_URL = os.getenv("COMPANY_PAGE_URL", "https://links.sgx.com/1.0.0/corporate-information")
+COMPANY_LIST_URL = os.getenv("COMPANY_LIST_URL", "https://api.sgx.com/announcements/v1.1/companylist")
 
 # MongoDB / queue settings
 MONGODB_URI = os.getenv("MONGODB_URI") or os.getenv("MONGO_URI") or os.getenv("MONGOURL")
@@ -52,8 +53,8 @@ MAX_COMPANIES = int(os.getenv("MAX_COMPANIES", "0"))  # 0 means no limit
 import datetime as date
 
 today = date.datetime.now()
-PERIOD_END = today.strftime("%Y%m%d_%H%M%S")
-PERIOD_START = (today - date.timedelta(days=3650)).strftime("%Y%m%d_%H%M%S")
+PERIOD_END = today.strftime("%Y%m%d_%H%M%S")    
+PERIOD_START = (today - date.timedelta(days=(365*3))).strftime("%Y%m%d_%H%M%S")
 #print(f"PERIOD_START set to {PERIOD_START}, PERIOD_END set to {PERIOD_END}")
 
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "5"))  # Max concurrent workers for downloading files

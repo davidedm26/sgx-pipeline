@@ -71,52 +71,65 @@ def process_company_files(company_name: str, company_id: str):
     
     # Process all documents using multithreading
     if all_documents:
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = []
-            for doc in all_documents:
-                futures.append(executor.submit(document_worker.process_document, doc, company_id))
 
-            with tqdm(total=len(all_documents), desc=f"Processing documents for {company_name}") as pbar:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = [executor.submit(document_worker.process_document, doc, company_id) for doc in all_documents]
+
+            # Use tqdm and update the bar each time a future completes
+            with tqdm(total=len(futures), desc=f"Processing documents for {company_name}") as pbar:
                 for future in as_completed(futures):
                     if shutdown_event.is_set():
                         tqdm.write("Shutdown event detected. Cancelling remaining tasks.")
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        return
+                        try:
+                            executor.shutdown(wait=False, cancel_futures=True)
+                        except TypeError:
+                            # cancel_futures is not available on older Python versions
+                            executor.shutdown(wait=False)
+                        break
 
                     try:
                         doc_metadata = future.result()
                         if doc_metadata:
                             all_metadata.append(doc_metadata)
-                            if len(all_metadata) >= BATCH_SIZE:  # Adjust batch size as needed
-                                try:
-                                    batch_to_store = all_metadata[:BATCH_SIZE]  # Copy the first BATCH_SIZE elements
-                                    store_metadata_batch(batch_to_store)  # Store metadata in batches
-                                    del all_metadata[:BATCH_SIZE]  # Remove the first BATCH_SIZE elements safely
-                                    tqdm.write(f"Saved {len(batch_to_store)} new documents in sgx-public-documents-granular.")
-                                except Exception as e:
-                                    tqdm.write(f"Error storing metadata batch: {e}")
+                            '''
+                            # Store in batches if BATCH_SIZE is configured (> 0)
+                            if BATCH_SIZE > 0:
+                                while len(all_metadata) >= BATCH_SIZE:
+                                    batch_to_store = all_metadata[:BATCH_SIZE]
+                                    try:
+                                        store_metadata_batch(batch_to_store)
+                                        del all_metadata[:len(batch_to_store)]
+                                        tqdm.write(f"Saved {len(batch_to_store)} new documents in sgx-public-documents-granular.")
+                                    except Exception as e:
+                                        tqdm.write(f"Error storing metadata batch: {e}")
+                                        # stop attempting to store further batches on persistent error
+                                        break
+                            '''
                     except RetryError as re:
-                        # Tenacity reports a RetryError when retries are exhausted if reraise is False.
-                        # With reraise=True on the decorator, this block may not be hit; we keep it for safety.
                         tqdm.write(f"Request failed after retries: {re}")
                     except requests.exceptions.RequestException as rexc:
-                        # network-related exception from requests (if reraise=True on retry decorators)
                         tqdm.write(f"Network error during document processing: {rexc}")
                     except Exception as e:
-                        tqdm.write(f"Error processing document: {e}")
+                        tqdm.write(f"Unexpected error processing document: {e}")
                     finally:
+                        # Important: update the progress bar for every completed future
                         pbar.update(1)
 
-        # Store all metadata in the database
-        try:
-            store_metadata_batch(all_metadata)  # Store all metadata at once in the database
-            tqdm.write(f"Saved {len(all_metadata)} new documents in sgx-public-documents-granular.")
-        except Exception as e:
-            tqdm.write(f"Error storing metadata: {e}")
+        # Store metadata in the database (if any)
+        if all_metadata:
+            try:
+                tqdm.write(f"Storing {len(all_metadata)} documents in sgx-public-documents-granular.")
+                store_metadata_batch(all_metadata)
+                #tqdm.write(f"Saved {len(all_metadata)} new documents in sgx-public-documents-granular.")
+                all_metadata.clear()
+            except Exception as e:
+                tqdm.write(f"Error storing metadata: {e}")
+        else:
+            tqdm.write("No new metadata to store.")
             
 if __name__ == "__main__":
     # Example usage
-    company_name = "17LIVE GROUP LIMITED"
-    company_id = "2995"
+    company_name = "SINOSTAR PEC HOLDINGS LIMITED"
+    company_id = "2788"
     process_company_files(company_name, company_id)
     

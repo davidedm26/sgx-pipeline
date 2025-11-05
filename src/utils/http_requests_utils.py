@@ -64,13 +64,15 @@ def get_headers(overrides: Optional[Dict[str, str]] = None) -> Dict[str, str]:
 @retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_exponential(multiplier=BACKOFF_FACTOR, min=1, max=REQUEST_TIMEOUT))
 def fetch_sgx_token(cms_url: str = CMS_URL,
                     session: Optional[requests.Session] = None,
-                    timeout: int = 10) -> Optional[str]:
+                    timeout: int = 10,
+                    force_new: bool = False) -> Optional[str]:
     """Fetches the qrValidator from the CMS endpoint and applies ROT13.
 
     Returns the decoded token or None on failure. Caches the token in module-level variable to avoid repeated calls.
     """
+    
     global _CACHED_SGX_TOKEN
-    if _CACHED_SGX_TOKEN:
+    if _CACHED_SGX_TOKEN and not force_new:
         return _CACHED_SGX_TOKEN
 
     s = session or requests.Session()

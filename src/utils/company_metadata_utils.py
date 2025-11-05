@@ -6,7 +6,7 @@ sys.path.append(str(ROOT_PATH))
 sys.path.append(str(SRC_PATH))
 
 from tenacity import retry, stop_after_attempt, wait_exponential
-from config.settings import MAX_RETRIES, BACKOFF_FACTOR, REQUEST_TIMEOUT, COMPANYLIST_URL , CORPORATEINFO_URL , COMPANY_PAGE_SIZE, COMPANY_MAX_PAGES, MAX_WORKERS, PERIOD_END, PERIOD_START 
+from config.settings import MAX_RETRIES, BACKOFF_FACTOR, REQUEST_TIMEOUT, COMPANYLIST_URL , CORPORATEINFO_URL , COMPANY_PAGE_SIZE, COMPANY_MAX_PAGES, MAX_WORKERS, PERIOD_END, MAX_COMPANIES, PERIOD_START 
 import requests
 from utils.http_requests_utils import get_headers
 from utils.scraping_utils import get_search_results, extract_documents_list 
@@ -56,7 +56,7 @@ def get_company_result_dict():
         
     print(f"Total documents collected: {len(all_documents)}")
     
-    return all_documents
+    return all_documents[:MAX_COMPANIES] if MAX_COMPANIES > 0 else all_documents
     
 
 

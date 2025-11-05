@@ -22,11 +22,11 @@ def create_indexes(db):
 
     try:
         db[COMPANIES_QUEUE_COLLECTION].create_index(
-            [("company_id", 1), ("name", 1)], unique=True, background=True
+            [("company_id", 1)], unique=True, background=True
         )
-        #db[COMPANIES_QUEUE_COLLECTION].create_index(
-        #    [("name", 1)], unique=True, background=True
-        #)
+        db[COMPANIES_QUEUE_COLLECTION].create_index(
+            [("name", 1)], unique=True, background=True
+        )
 
         db[PUBLIC_DOCUMENTS_COLLECTION].create_index(
             [("document_id", 1)], unique=True, background=True
@@ -68,78 +68,111 @@ def store_metadata_batch(metadata_list: list) -> None:
     """Store a batch of metadata documents in the database."""
     global db  # Use the global db object
 
+    if db is None:
+        db = connect_mongo()
+
     if not metadata_list:
         print("No metadata to store.")
         return
-
+    
+    from pymongo.errors import DuplicateKeyError
+    from pathlib import Path
+    
     collection = db[PUBLIC_DOCUMENTS_COLLECTION]
     try:
         result = collection.insert_many(metadata_list, ordered=False)
         print(f"Saved {len(result.inserted_ids)} documents in {PUBLIC_DOCUMENTS_COLLECTION}.")
     except BulkWriteError as bwe:
-        duplicate_count = sum(1 for error in bwe.details.get("writeErrors", []) if (error.get("code") == 11000 and error.get("keyPattern") == {"document_id": 1}))
+
+        write_errors = bwe.details.get("writeErrors", []) or []
+        # Count duplicates only for file_name/document_id patterns
+        duplicate_count = sum(
+            1
+            for error in write_errors
+            if error.get("code") == 11000
+            and any(k in (error.get("keyPattern") or {}) for k in ("file_name", "document_id"))
+        )
         added_count = len(metadata_list) - duplicate_count
         if added_count > 0:
             print(f"Saved {added_count} new documents in {PUBLIC_DOCUMENTS_COLLECTION}.")
         if duplicate_count > 0:
-            print(f"{duplicate_count} documents already exist in the collection.")
-            duplicate_files = []
-            for error in bwe.details.get("writeErrors", []):
-                # Manage file_name duplicates by appending a counter
-                #print(f"Duplicate error details: {error}")
-                
-                if error.get("code") == 11000 and error.get("keyPattern") == {"document_id": 1}:
-                    # Handle duplicate based on document_id
-                    #print("Handling duplicate document_id ...")
-                    duplicate_file = metadata_list[error["index"]]
-                    doc_id = duplicate_file.get("document_id", "unknown")
-                    existing_doc = collection.find_one({"document_id": doc_id})
-                    
-                    if existing_doc:
-                        new_supporting_file_paths = duplicate_file.get("supporting_file_paths", [])
-                        existing_supporting_file_paths = existing_doc.get("supporting_file_paths", [])
+            print(f"{duplicate_count} documents already exist in the collection or need to be renamed.")
 
-                        # DEBUG PRINT
-                        #print(f"Comparing supporting_file_paths lengths for document_id {doc_id}:")
-                        #print(f" - New supporting_file_paths length: {len(new_supporting_file_paths)}")
-                        #print(f" - Existing supporting_file_paths length: {len(existing_supporting_file_paths)}")
+        # Handle each duplicate error individually
+        for error in write_errors:
+            if error.get("code") != 11000:
+                continue
 
-                        if len(new_supporting_file_paths) > len(existing_supporting_file_paths):
-                            try:
-                                # Exclude the '_id' field from the update to avoid modifying the immutable field
-                                duplicate_file_without_id = {k: v for k, v in duplicate_file.items() if k != "_id"}
-                                collection.update_one(
-                                    {"document_id": doc_id},
-                                    {"$set": duplicate_file_without_id}
-                                )
-                                print(f"Updated document_id {doc_id} with updated supporting_file_paths.")
-                            except Exception as e:
-                                print(f"Failed to update document_id {doc_id}: {e}")
-                        else:
-                            print(f"Document_id {doc_id} already exists with a newer version. Skipping update.")
-                    else:
-                        print(f"Duplicate document_id found: {doc_id}. Skipping insertion.")
-                elif error.get("code") == 11000 and error.get("keyPattern") == {"file_name": 1}:
-                    # Handle duplicate file_name only if document_id duplication did not occur
-                    if not any(err.get("code") == 11000 and err.get("keyPattern") == {"document_id": 1} for err in bwe.details.get("writeErrors", [])):
-                        #print("Handling duplicate file_name ...")
-                        duplicate_file = metadata_list[error["index"]]  # file that caused the duplicate error
-                        base_name = duplicate_file.get("file_name", "unknown")  # get its file_name
-                        counter = 1
-                        new_file_name = f"{base_name} - [{counter}]"  # start with counter 1
-                        while collection.find_one({"file_name": new_file_name}):  # verify if new name exists
-                            counter += 1
-                            new_file_name = f"{base_name} - [{counter}]"  # update new name and try again
+            idx = error.get("index")
+            if idx is None or idx < 0 or idx >= len(metadata_list):
+                # Can't resolve which document caused the error
+                print(f"Skipping unresolved duplicate error: {error}")
+                continue
 
-                        duplicate_file["file_name"] = new_file_name
+            duplicate_file = dict(metadata_list[idx])  # copy to avoid mutating original list
 
+            key_pattern = error.get("keyPattern") or {}
+            # Normalize: keyPattern can be dict-like with int values
+            if "document_id" in key_pattern:
+                # Handle duplicate based on document_id: prefer the doc with more supporting_file_paths
+                doc_id = duplicate_file.get("document_id", "unknown")
+                existing_doc = collection.find_one({"document_id": doc_id})
+                if existing_doc:
+                    new_supporting = duplicate_file.get("supporting_file_paths") or []
+                    existing_supporting = existing_doc.get("supporting_file_paths") or []
+                    if len(new_supporting) > len(existing_supporting):
                         try:
-                            collection.insert_one(duplicate_file)
-                            print(f"Inserted duplicate with new name: {new_file_name}")
+                            # Exclude immutable _id
+                            duplicate_file_without_id = {k: v for k, v in duplicate_file.items() if k != "_id"}
+                            collection.update_one({"document_id": doc_id}, {"$set": duplicate_file_without_id})
+                            print(f"Updated document_id {doc_id} with more complete supporting_file_paths.")
                         except Exception as e:
-                            #print(f"Failed to insert duplicate file:{duplicate_file.get('document_id')}")
-                            pass
-                        duplicate_files.append(new_file_name)
+                            print(f"Failed to update document_id {doc_id}: {e}")
+                    else:
+                        #print(f"Existing document_id {doc_id} has equal or more supporting paths. Skipping update.")
+                        pass
+                else:
+                    print(f"Duplicate document_id reported but no existing doc found for id={doc_id}. Skipping.")
+
+            elif "file_name" in key_pattern:
+                # Handle duplicate file_name by generating a new unique filename preserving extension
+                base_name = duplicate_file.get("file_name", "unknown")
+                p = Path(base_name)
+                stem = p.stem
+                suffix = p.suffix or ""
+                counter = 1
+                new_file_name = f"{stem} - [{counter}]{suffix}"
+                # Ensure we don't loop indefinitely; set a reasonable max attempts
+                max_attempts = 10000
+                attempts = 0
+                while collection.find_one({"file_name": new_file_name}):
+                    attempts += 1
+                    if attempts >= max_attempts:
+                        print(f"Failed to find unique filename for {base_name} after {attempts} attempts. Skipping.")
+                        new_file_name = None
+                        break
+                    counter += 1
+                    new_file_name = f"{stem} - [{counter}]{suffix}"
+
+                if not new_file_name:
+                    continue
+
+                # Prepare doc for insertion: remove _id to avoid duplicate ObjectId issues
+                doc_to_insert = {k: v for k, v in duplicate_file.items() if k != "_id"}
+                doc_to_insert["file_name"] = new_file_name
+
+                try:
+                    collection.insert_one(doc_to_insert)
+                    print(f"Inserted duplicate with new name: {new_file_name}")
+                except DuplicateKeyError as dke:
+                    # If still duplicate (race condition or other unique key), log and skip
+                    print(f"Could not insert renamed file {new_file_name} due to duplicate key: {dke}")
+                except Exception as e:
+                    print(f"Failed to insert renamed file {new_file_name}: {e}")
+
+            else:
+                # Unknown unique key causing 11000 - report for further investigation
+                print(f"Unhandled duplicate key pattern in error: {error.get('keyPattern')} for index {idx}")
     except Exception as e:
         print(f"Batch insert error: {e}")
 
@@ -228,7 +261,7 @@ def get_pending_companies():
     collection = db[COMPANIES_QUEUE_COLLECTION]
     try:
         pending_companies = list(collection.find({"status": "pending"}))
-        print(f"Retrieved {len(pending_companies)} pending companies from the queue.")
+        print(f"Retrieved {len(pending_companies)} pending companies from the queue collection.")
         return pending_companies
     except Exception as e:
         print(f"Error retrieving pending companies: {e}")
@@ -246,7 +279,7 @@ def reset_error_companies():
 
     try:
         result = collection.update_many(
-            {"status": {"$in": ["error", "cancelled"]}},
+            {"status": {"$in": ["error", "cancelled", "running"]}},
             {"$set": {
                 "status": "pending",
                 "updated_at": current_timestamp
@@ -266,12 +299,27 @@ def get_companies_without_metadata():
     collection = db[COMPANIES_QUEUE_COLLECTION]
     try:
         companies = list(collection.find({"processed_company_metadata": False}))
-        print(f"Retrieved {len(companies)} companies without metadata from the queue.")
+        print(f"Retrieved {len(companies)} companies without metadata from the queue collection.")
         return companies
     except Exception as e:
         print(f"Error retrieving companies without metadata: {e}")
         return []
 
+def get_queue_company_list():
+    # Return list of (name, company_id) pairs for companies in the queue
+    db = connect_mongo()
+    if db is None:
+        raise ValueError("Database connection error.")
+
+    collection = db[COMPANIES_QUEUE_COLLECTION]
+    try:
+        cursor = collection.find({}, {"name": 1, "company_id": 1})
+        companies = [(doc.get("name"), doc.get("company_id")) for doc in cursor]
+        print(f"CHECKING QUEUE COLLECTION TO FOUND EXISTING COMPANIES: Found a total of {len(companies)} companies in the queue collection.")
+        return companies
+    except Exception as e:
+        print(f"Error retrieving companies from the queue: {e}")
+        return []
 
 def update_company(company_id, processed=False, status="success"):
     # Implement the logic to update the company status in the database and update UAT collection
@@ -390,13 +438,15 @@ def update_company_metadata(company_id, metadata):
             {"$set": {"metadata": metadata}}
         )
         if result.matched_count > 0:
-            print(f"Appended metadata to company_id {company_id} in {coll.name}.")
+            #print(f"Appended metadata to company_id {company_id} in {coll.name}.")
+            pass
         else:
             print(f"No company found with company_id {company_id} in {coll.name}.")
 
     # Update processed_company_metadata in queue collection
     queue_coll = db[COMPANIES_QUEUE_COLLECTION]
     from datetime import datetime, timezone
+
     queue_result = queue_coll.update_one(
         {"company_id": company_id},
         {"$set": {
@@ -405,7 +455,8 @@ def update_company_metadata(company_id, metadata):
         }}
     )
     if queue_result.matched_count > 0:
-        print(f"Set processed_company_metadata=True for company_id {company_id} in queue.")
+        #print(f"Set processed_company_metadata=True for company_id {company_id} in queue.")
+        pass
     else:
         print(f"No company found with company_id {company_id} in queue.")
     

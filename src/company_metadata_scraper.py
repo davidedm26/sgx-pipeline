@@ -13,32 +13,60 @@ def run_company_metadata_pipeline():
         print(f"Error populating company collections: {e}")
         return
 
-    from utils.db_utils import get_companies_without_metadata
+    from utils.db_utils import get_companies_without_metadata, update_company_metadata
     pending_companies = get_companies_without_metadata()
 
-    if (not pending_companies) or (len(pending_companies) == 0):
+    if not pending_companies:
         print("No pending companies to process for metadata.")
         return
-    
-    
-    for company in pending_companies:
+
+    # Progress and statistics (multithreaded)
+    from tqdm import tqdm
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from config.settings import MAX_WORKERS
+
+    processed_ok = 0
+    processed_error = 0
+    error_companies = []
+
+    def _process_company(company):
         company_name = company.get("name")
         company_id = company.get("company_id")
         if not company_name or not company_id:
-            print(f"Invalid company data: {company}")
-            continue
-
+            return (company_id, company_name, False, "invalid data")
         try:
-            from company_metadata_scraper import get_company_metadata
             metadata = get_company_metadata(company_name, company_id)
-            if (not metadata) or (len(metadata) == 0):
-                print(f"No metadata retrieved for company {company_name} (ID: {company_id})")
-                continue
-            from utils.db_utils import update_company_metadata
+            if not metadata:
+                return (company_id, company_name, False, "empty metadata")
+            # Persist metadata (thread-safe: update_company_metadata creates its own DB connection)
             update_company_metadata(company_id, metadata=metadata)
+            return (company_id, company_name, True, "")
         except Exception as e:
-            print(f"Error processing metadata for company {company_name}: {e}")
+            return (company_id, company_name, False, str(e))
 
+    workers = MAX_WORKERS if isinstance(MAX_WORKERS, int) and MAX_WORKERS > 0 else 4
+    futures = []
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        for company in pending_companies:
+            futures.append(executor.submit(_process_company, company))
+
+        for fut in tqdm(as_completed(futures), total=len(futures), desc="Companies (metadata)"):
+            cid, cname, ok, msg = fut.result()
+            if ok:
+                processed_ok += 1
+            else:
+                processed_error += 1
+                error_companies.append((cid, cname, msg))
+
+    # Summary
+    print("\nMetadata processing summary:")
+    print(f"  Total companies considered: {len(pending_companies)}")
+    print(f"  Successfully processed:    {processed_ok}")
+    print(f"  Errors:                    {processed_error}")
+    if error_companies:
+        print("  Error details (company_id, name, error):")
+        for cid, cname, cerr in error_companies:
+            print(f"    - {cid} | {cname} | {cerr}")
 
 def get_company_metadata(company_name=None, company_id=None) -> dict:
     from utils.scraping_utils import get_web_page
@@ -175,10 +203,7 @@ def parse_company_metadata(html_content: str) -> dict:
         "website": website,
         "date_of_last_update": last_update_date
     }
-
-
-    
-    
+   
     
 if __name__ == "__main__":
     run_company_metadata_pipeline()
