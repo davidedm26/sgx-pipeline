@@ -19,9 +19,9 @@ def process_document(document: dict, company_id: str) -> bool:
 
         wp = get_web_page(url)
 
-        company_name_no_space = "_".join(metadata.get("company_name").replace(" ", "_").split())
-        category_name_no_space = "_".join(metadata.get("category_name").replace(" ", "_").split())
-        category_name_no_space = category_name_no_space[:50].upper()  # Truncate to first 50 characters
+        company_name = metadata.get("company_name")
+        company_name_no_space = "_".join(company_name.replace(" ", "_").split())
+        category_name = metadata.get("category_name").upper()
         filing_date_str = metadata.get("filing_date")
         document_id = metadata.get('document_id')
         file_type = metadata.get('file_type')
@@ -57,7 +57,7 @@ def process_document(document: dict, company_id: str) -> bool:
             return
 
         filing_date_str_with_scores = filing_date.strftime("%Y-%m-%d")
-        metadata["file_name"] = f"{category_name_no_space} - {company_name_no_space} [{filing_date_str_with_scores}]"
+        metadata["file_name"] = f"{category_name} - {company_name} [{filing_date_str_with_scores}]"
 
         att_list = get_attachments_url_list(wp)
         import concurrent.futures

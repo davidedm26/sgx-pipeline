@@ -143,7 +143,7 @@ def store_metadata_batch(metadata_list: list) -> None:
                 stem = p.stem
                 suffix = p.suffix or ""
                 counter = 1
-                new_file_name = f"{stem} [{counter}]{suffix}"
+                new_file_name = f"{stem} {suffix}[{counter}]"
                 # Ensure we don't loop indefinitely; set a reasonable max attempts
                 max_attempts = 10000
                 attempts = 0
@@ -154,7 +154,7 @@ def store_metadata_batch(metadata_list: list) -> None:
                         new_file_name = None
                         break
                     counter += 1
-                    new_file_name = f"{stem} [{counter}]{suffix}"
+                    new_file_name = f"{stem} {suffix}[{counter}]"
 
                 if not new_file_name:
                     continue
@@ -315,6 +315,23 @@ def get_pending_companies():
     except Exception as e:
         print(f"Error retrieving pending companies: {e}")
         return []
+    
+#This function returns all the company in the queue
+def get_companies_to_ticker():
+    # Implement the logic to retrieve pending companies from the database
+    db = connect_mongo()
+    if db is None:
+        raise ValueError("Database connection error.")
+
+    collection = db[COMPANIES_QUEUE_COLLECTION]
+    try:
+        companies = list(collection.find({"processed_company_metadata": True}))
+        print(f"Retrieved {len(companies)} companies from the queue collection.")
+        return companies
+    except Exception as e:
+        print(f"Error retrieving companies: {e}")
+        return []
+    
     
 def reset_error_companies():
     # Implement the logic to reset companies with 'error' status back to 'pending'
@@ -550,6 +567,48 @@ def update_company_metadata(company_id, metadata):
         pass
     else:
         print(f"No company found with company_id {company_id} in queue.")
+        
+        
+        
+
+def add_ticker_info(company_id, ticker_code, ticker_name):
+    # Add/update ticker_code and ticker_name for the company in queue and UAT/PROD collections
+    db = connect_mongo()
+    if db is None:
+        raise ValueError("Database connection error.")
+
+    updated_at = datetime.now(timezone.utc)
+
+    # Update queue collection so the queue reflects ticker info
+    queue_coll = db[COMPANIES_QUEUE_COLLECTION]
+    try:
+        qres = queue_coll.update_one(
+            {"company_id": company_id},
+            {"$set": {"metadata_updated_at": updated_at}}
+        )
+        if qres.matched_count > 0:
+            print(f"Added/Updated metadata_updated_at for company_id {company_id}")
+        else:
+            print(f"No company found with company_id {company_id} in queue to add/update ticker.")
+    except Exception as e:
+        print(f"Error updating ticker in queue for company_id {company_id}: {e}")
+
+    # Update UAT and optionally PROD collections
+    for coll in [db[COMPANIES_UAT_COLLECTION], db[COMPANIES_PROD_COLLECTION] if PROD_MODE else db[COMPANIES_UAT_COLLECTION]]:
+        try:
+            res = coll.update_one(
+                {"company_id": company_id},
+                {"$set": {"code": ticker_code, "trading_name": ticker_name, "updated_at": updated_at}}
+            )
+            if res.matched_count > 0:
+                print(f"Added/Updated ticker for company_id {company_id} in {coll.name}: {ticker_code} / {ticker_name}")
+            else:
+                print(f"No company found with company_id {company_id} in {coll.name} to add/update ticker.")
+        except Exception as e:
+            print(f"Error updating ticker in {coll.name} for company_id {company_id}: {e}")
+
+
+    
     
 
 __all__ = ["db", "connect_mongo", "store_metadata_batch", "get_pending_companies"]

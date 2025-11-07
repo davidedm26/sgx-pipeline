@@ -54,7 +54,7 @@ import datetime as date
 
 today = date.datetime.now()
 PERIOD_END = today.strftime("%Y%m%d_%H%M%S")    
-PERIOD_START = (today - date.timedelta(days=(365*3))).strftime("%Y%m%d_%H%M%S")
+PERIOD_START = date.datetime(2022, 1, 1, 0, 0, 0).strftime("%Y%m%d_%H%M%S")
 #print(f"PERIOD_START set to {PERIOD_START}, PERIOD_END set to {PERIOD_END}")
 
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "5"))  # Max concurrent workers for downloading files
