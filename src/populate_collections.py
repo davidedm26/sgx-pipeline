@@ -57,7 +57,7 @@ def populate_company_collections():
         raise ValueError("No company data retrieved.")
 '''
 
-
+'''
 def populate_company_collections():
     # Implement the logic to populate the queue with company names
     from utils.company_metadata_utils import get_company_result_dict
@@ -132,9 +132,9 @@ def populate_company_collections():
             print(f"Error storing company collections: {e}")
     else:
         raise ValueError("No company data retrieved.")
+'''
 
-
-
+'''
 def match_company_names(listed_company):
     """_summary_
 
@@ -262,6 +262,60 @@ def match_company_names(listed_company):
                             del count_dict[tok]
     
     return results
+'''
+
+def populate_company_collections():
+    # Implement the logic to populate the queue with company names
+    from utils.company_metadata_utils import get_company_result_dict
+    company_listed = get_company_result_dict()
+    if company_listed:        
+        # Extract and print the list of document company_names for debugging
+        listed_company_info = [{"company_id": doc.get("id", "Unknown Code")} for doc in company_listed]
+        #print(f"Document Company Data: {name_code_dict}")
+        
+        #esclude from the matching algorithm the already queued companies
+        from utils.db_utils import get_queue_company_list 
+        in_queue_company = get_queue_company_list() #returns list of (name, company_id) tuples
+        #print(f"Companies already in queue: {in_queue_company}")
+        
+        if (in_queue_company) and (len(in_queue_company) > 0):
+            original_count = len(listed_company_info)
+            # normalize and create sets for quick  checks
+            #queued_names = {t[0].strip().lower() for t in in_queue_company}
+            #get all the ids in the queue
+            queued_ids = {str(t).strip() for t in in_queue_company}
+
+            #take only those entries whose company_id is not in the queued_ids
+            new_company_info = [
+                entry for entry in listed_company_info
+                if (str(entry.get("company_id", "")).strip() not in queued_ids)
+            ]
+            
+            #count how many were excluded            
+            excluded_count = original_count - len(new_company_info)
+            print(f"Excluding {excluded_count} companies already in queue. Remaining companies to process: {len(new_company_info)}")
+        
+        else:
+            new_company_info = listed_company_info
+
+
+        #print(f"Companies to be inserted (confidence >= 90.0): {inserting_company}")
+        from utils.db_utils import store_company_queue
+        try:
+            #print(name_code_dict)
+            store_company_queue(companylist=new_company_info) #populate queue
+        except Exception as e:
+            print(f"Error storing company queue: {e}")
+        
+        try:
+            from utils.db_utils import store_company_documents
+            #print(name_code_dict)
+            store_company_documents(companylist=new_company_info) #populate uat/prod
+        except Exception as e:
+            print(f"Error storing company collections: {e}")
+    else:
+        raise ValueError("No company data retrieved.")
+
 
 def get_company_name_list_and_count_dict():
     from utils.scraping_utils import get_web_page

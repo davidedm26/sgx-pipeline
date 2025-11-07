@@ -7,6 +7,8 @@ sys.path.append(str(SRC_PATH))
 
 from pymongo import MongoClient
 from pymongo.errors import BulkWriteError
+import datetime
+from datetime import datetime, timezone
 from config.settings import MONGODB_URI, MONGODB_DATABASE, COMPANIES_QUEUE_COLLECTION, PUBLIC_DOCUMENTS_COLLECTION, COMPANIES_UAT_COLLECTION, COMPANIES_PROD_COLLECTION, PROD_MODE 
 
 print(f"Using MongoDB service at { MONGODB_URI }")
@@ -24,9 +26,9 @@ def create_indexes(db):
         db[COMPANIES_QUEUE_COLLECTION].create_index(
             [("company_id", 1)], unique=True, background=True
         )
-        db[COMPANIES_QUEUE_COLLECTION].create_index(
-            [("name", 1)], unique=True, background=True
-        )
+        #db[COMPANIES_QUEUE_COLLECTION].create_index(
+        #    [("name", 1)], unique=True, background=True
+        #)
 
         db[PUBLIC_DOCUMENTS_COLLECTION].create_index(
             [("document_id", 1)], unique=True, background=True
@@ -40,16 +42,16 @@ def create_indexes(db):
         db[COMPANIES_PROD_COLLECTION].create_index(
             [("company_id", 1)], unique=True, background=True
         )
-        db[COMPANIES_PROD_COLLECTION].create_index(
-            [("name", 1)], unique=True, background=True
-        )
+        #db[COMPANIES_PROD_COLLECTION].create_index(
+        #    [("name", 1)], unique=True, background=True
+        #)
 
         db[COMPANIES_UAT_COLLECTION].create_index(
             [("company_id", 1)], unique=True, background=True
         )
-        db[COMPANIES_UAT_COLLECTION].create_index(
-            [("name", 1)], unique=True, background=True
-        )
+        #db[COMPANIES_UAT_COLLECTION].create_index(
+        #    [("name", 1)], unique=True, background=True
+        #)
 
         print("Indexes created successfully.")
     except PyMongoError as e:
@@ -141,7 +143,7 @@ def store_metadata_batch(metadata_list: list) -> None:
                 stem = p.stem
                 suffix = p.suffix or ""
                 counter = 1
-                new_file_name = f"{stem} - [{counter}]{suffix}"
+                new_file_name = f"{stem} [{counter}]{suffix}"
                 # Ensure we don't loop indefinitely; set a reasonable max attempts
                 max_attempts = 10000
                 attempts = 0
@@ -152,7 +154,7 @@ def store_metadata_batch(metadata_list: list) -> None:
                         new_file_name = None
                         break
                     counter += 1
-                    new_file_name = f"{stem} - [{counter}]{suffix}"
+                    new_file_name = f"{stem} [{counter}]{suffix}"
 
                 if not new_file_name:
                     continue
@@ -220,28 +222,28 @@ def store_company_queue(companylist, default_status: str = "pending"):
     skipped_conflicts = 0
 
     for comp in local_companylist:
-        name = comp.get("name")
+        #name = comp.get("name")
         cid = comp.get("company_id")
 
-        # Check if a document with the same name already exists
+        # Check if a document with the same company_id already exists
         try:
-            existing = collection.find_one({"name": name})
+            existing = collection.find_one({"company_id": cid})
         except Exception as e:
-            print(f"DB lookup error for name='{name}': {e}")
+            print(f"DB lookup error for company_id='{cid}': {e}")
             existing = None
 
         if existing:
             # Conflict if company_id differs
             if str(existing.get("company_id")) != str(cid):
                 skipped_conflicts += 1
-                print(f"Skipping insert for name='{name}' because an existing entry has company_id={existing.get('company_id')} (incoming {cid}).")
+                print(f"Skipping insert for company_id='{cid}' because an existing entry has company_id={existing.get('company_id')} (incoming {cid}).")
                 continue
             else:
                 # Already present with same company_id: update timestamps
                 try:
-                    collection.update_one({"name": name}, {"$set": {"updated_at": current_timestamp}})
+                    collection.update_one({"company_id": cid}, {"$set": {"updated_at": current_timestamp}})
                 except Exception as e:
-                    print(f"Failed to update timestamp for existing company '{name}': {e}")
+                    print(f"Failed to update timestamp for existing company '{cid}': {e}")
                 continue
 
         # Not existing: prepare document and insert
@@ -255,7 +257,7 @@ def store_company_queue(companylist, default_status: str = "pending"):
             collection.insert_one(doc)
             inserted += 1
         except Exception as e:
-            print(f"Failed to insert company '{name}': {e}")
+            print(f"Failed to insert company '{cid}': {e}")
 
     print(f"Inserted {inserted} new companies into the queue with status '{default_status}'.")
     if skipped_conflicts > 0:
@@ -345,23 +347,23 @@ def get_companies_without_metadata():
 
     collection = db[COMPANIES_QUEUE_COLLECTION]
     try:
-        companies = list(collection.find({"processed_company_metadata": False, "status": {"$ne": "unmatched"}}))
-        print(f"Retrieved {len(companies)}companies without metadata from the queue collection. Excluding 'unmatched' status.")
+        companies = list(collection.find({"processed_company_metadata": False}))
+        print(f"Retrieved {len(companies)} companies without metadata from the queue collection.")
         return companies
     except Exception as e:
         print(f"Error retrieving companies without metadata: {e}")
         return []
 
 def get_queue_company_list():
-    # Return list of (name, company_id) pairs for companies in the queue
+    # Return list of (company_id) pairs for companies in the queue
     db = connect_mongo()
     if db is None:
         raise ValueError("Database connection error.")
 
     collection = db[COMPANIES_QUEUE_COLLECTION]
     try:
-        cursor = collection.find({}, {"name": 1, "company_id": 1})
-        companies = [(doc.get("name"), doc.get("company_id")) for doc in cursor]
+        cursor = collection.find({}, {"company_id": 1})
+        companies = [doc.get("company_id") for doc in cursor]
         print(f"CHECKING QUEUE COLLECTION TO FOUND EXISTING COMPANIES: Found a total of {len(companies)} companies in the queue collection.")
         return companies
     except Exception as e:
@@ -441,7 +443,9 @@ def update_company(company_id, processed=False, status="success"):
         from utils.path_utils import convert_path_to_linux_format
         s3_path = latest_doc.get("file_path") if latest_doc else None
         if s3_path:
+            #get only the first two segments of the path
             s3_path = convert_path_to_linux_format(s3_path)
+            s3_path = "/".join(s3_path.split('/')[:3]) + "/"
 
         # Update UAT/PROD company collection: set processed and latest_filing_date (and updated_at)
         for coll in company_doc_coll:
@@ -463,6 +467,46 @@ def update_company(company_id, processed=False, status="success"):
 
     except Exception as e:
         print(f"Error updating company status for company_id {company_id}: {e}")
+        
+def add_company_name(company_id, company_name):
+    # Implement the logic to add company_name for the company in the queue collection
+    db = connect_mongo()
+    if db is None:
+        raise ValueError("Database connection error.")
+
+    queue_coll = db[COMPANIES_QUEUE_COLLECTION]
+    try:
+        # Update queue collection
+        result = queue_coll.update_one(
+            {"company_id": company_id},
+            {"$set": {
+                "name": company_name,
+                "updated_at": datetime.now(timezone.utc)
+            }}
+        )
+        if result.matched_count > 0:
+            #print(f"Added/Updated company_name for company_id {company_id} in queue to '{company_name}'")
+            pass
+        else:
+            print(f"No company found with company_id {company_id} in queue to add/update name.")
+            
+        #Update prod/uat
+        for coll in [ db[COMPANIES_UAT_COLLECTION] , db[COMPANIES_PROD_COLLECTION] if PROD_MODE else db[COMPANIES_UAT_COLLECTION] ]:
+            company_doc_result = coll.update_one(
+                {"company_id": company_id},
+                {"$set": {
+                    "name": company_name,
+                    "updated_at": datetime.now(timezone.utc)
+                }}
+            )
+            if company_doc_result.matched_count > 0:
+                #print(f"Added/Updated company_name for company_id {company_id} in {coll.name} to '{company_name}'")
+                pass
+            else:
+                print(f"No company found with company_id {company_id} in {coll.name} to add/update name.")
+        
+    except Exception as e:
+        print(f"Error adding/updating company name for company_id {company_id}: {e}")
 
 def update_company_metadata(company_id, metadata):
     """
@@ -517,5 +561,5 @@ if __name__ == "__main__":
     pending_companies = get_pending_companies()
     print(f"Pending companies: {len(pending_companies)}")
     
-    update_company(2995, processed=True, status="processed")
+    update_company(2995, processed=True, status="success")
     

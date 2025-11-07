@@ -18,19 +18,28 @@ def run_company_metadata_pipeline():
     error_companies = []
 
     def _process_company(company):
-        company_name = company.get("name")
         company_id = company.get("company_id")
-        if not company_name or not company_id:
-            return (company_id, company_name, False, "invalid data")
+        if not company_id:
+            return (company_id, None, False, "invalid data")
         try:
-            metadata = get_company_metadata(company_name, company_id)
+            metadata = get_company_metadata(company_id)
             if not metadata:
-                return (company_id, company_name, False, "empty metadata")
+                return (company_id, None, False, "empty metadata")
             # Persist metadata (thread-safe: update_company_metadata creates its own DB connection)
             update_company_metadata(company_id, metadata=metadata)
+            
+            company_name = metadata.get("full_company_name")
+            
+            if not company_name:
+                return (company_id, None, False, "missing company name in metadata")
+            
+            #add company_name for the company in the queue collection
+            from utils.db_utils import add_company_name 
+            add_company_name(company_id, company_name)
+
             return (company_id, company_name, True, "")
         except Exception as e:
-            return (company_id, company_name, False, str(e))
+            return (company_id, company_name, False, str(e)) if company_name else (company_id, None, False, str(e))
 
     workers = MAX_WORKERS if isinstance(MAX_WORKERS, int) and MAX_WORKERS > 0 else 4
     futures = []
@@ -56,7 +65,7 @@ def run_company_metadata_pipeline():
         for cid, cname, cerr in error_companies:
             print(f"    - {cid} | {cname} | {cerr}")
 
-def get_company_metadata(company_name=None, company_id=None) -> dict:
+def get_company_metadata(company_id=None) -> dict:
     from utils.scraping_utils import get_web_page
     
     from config.settings import COMPANY_PAGE_URL
@@ -170,7 +179,8 @@ def parse_company_metadata(html_content: str) -> dict:
         for fmt in ("%m/%d/%Y %I:%M:%S %p", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S"):
             try:
                 dt = datetime.strptime(last_update_text, fmt)
-                last_update_date = dt.isoformat()
+                #last_update_date = dt.isoformat()
+                last_update_date = dt #MODIFIED
                 break
             except Exception:
                 continue
@@ -178,7 +188,33 @@ def parse_company_metadata(html_content: str) -> dict:
             # fallback: keep raw text if it cannot be parsed
             last_update_date = last_update_text.strip()
     
-    return {
+        # Try to extract the 'Background' section if present on the page. SGX sometimes uses
+        # a block like:
+        # <div class="announcement-group">
+        #   <div class="announcement-group-header">Background</div>
+        #   <dd id="litIPOCompany" class="announcement-richtext">...</dd>
+        # </div>
+        # We search first by the known id `litIPOCompany`, then by header text.
+        background = None
+        el = soup.find(id="litIPOCompany")
+        if el:
+            try:
+                background = el.get_text(strip=True)
+            except Exception:
+                background = None
+        else:
+            for grp in soup.find_all(class_="announcement-group"):
+                hdr = grp.find(class_="announcement-group-header")
+                if hdr and "background" in hdr.get_text(strip=True).lower():
+                    candidate = grp.find(class_="announcement-richtext") or grp.find("dd")
+                    if candidate:
+                        try:
+                            background = candidate.get_text(strip=True)
+                        except Exception:
+                            background = None
+                    break
+
+        return {
         "full_company_name": full_name,
         "incorporated_in": incorporated_in,
         "incorporated_on": incorporated_on,
@@ -189,7 +225,8 @@ def parse_company_metadata(html_content: str) -> dict:
         "email": email,
         "secretary": secretary,
         "website": website,
-        "date_of_last_update": last_update_date
+        "date_of_last_update": last_update_date,
+        "background": background
     }
    
     
