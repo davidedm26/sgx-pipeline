@@ -1,17 +1,5 @@
 def run_company_metadata_pipeline():
-    from utils.scraping_utils import download_and_store_css
-    try:
-        download_and_store_css()
-    except Exception as e:
-        print(f"Error downloading and storing CSS: {e}")
-        # continue anyway
-
-    from populate_collections import populate_company_collections
-    try:
-        populate_company_collections()
-    except Exception as e:
-        print(f"Error populating company collections: {e}")
-        return
+    
 
     from utils.db_utils import get_companies_without_metadata, update_company_metadata
     pending_companies = get_companies_without_metadata()
@@ -206,6 +194,20 @@ def parse_company_metadata(html_content: str) -> dict:
    
     
 if __name__ == "__main__":
+    from utils.scraping_utils import download_and_store_css
+    try:
+        download_and_store_css()
+    except Exception as e:
+        print(f"Error downloading and storing CSS: {e}")
+        # continue anyway
+
+    from populate_collections import populate_company_collections
+    try:
+        populate_company_collections()
+    except Exception as e:
+        print(f"Error populating company collections: {e}")
+        raise
+    
     run_company_metadata_pipeline()
     #metadata = get_company_metadata(company_id=2995)
     #print(metadata)

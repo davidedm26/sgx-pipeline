@@ -7,7 +7,7 @@ sys.path.append(str(SRC_PATH))
 
 from config.settings import COMPANY_LIST_URL 
 
-
+'''
 def populate_company_collections():
     # Implement the logic to populate the queue with company names
     from utils.company_metadata_utils import get_company_result_dict
@@ -55,7 +55,86 @@ def populate_company_collections():
             print(f"Error storing company collections: {e}")
     else:
         raise ValueError("No company data retrieved.")
-    
+'''
+
+
+def populate_company_collections():
+    # Implement the logic to populate the queue with company names
+    from utils.company_metadata_utils import get_company_result_dict
+    company_listed = get_company_result_dict()
+    if company_listed:        
+        # Extract and print the list of document company_names for debugging
+        listed_company_info = [{"name": doc.get("companyName", "Unknown Name"), "company_id": doc.get("id", "Unknown Code")} for doc in company_listed]
+        #print(f"Document Company Data: {name_code_dict}")
+        
+        #esclude from the matching algorithm the already queued companies
+        from utils.db_utils import get_queue_company_list 
+        in_queue_company = get_queue_company_list() #returns list of (name, company_id) tuples
+        #print(f"Companies already in queue: {in_queue_company}")
+        
+        if (in_queue_company) and (len(in_queue_company) > 0):
+            original_count = len(listed_company_info)
+            # normalize and create sets for quick  checks
+            #queued_names = {t[0].strip().lower() for t in in_queue_company}
+            #get all the ids in the queue
+            queued_ids = {str(t[1]).strip() for t in in_queue_company}
+
+            #take only those entries whose company_id is not in the queued_ids
+            new_company_info = [
+                entry for entry in listed_company_info
+                if (str(entry.get("company_id", "")).strip() not in queued_ids)
+            ]
+            
+            #count how many were excluded            
+            excluded_count = original_count - len(new_company_info)
+            print(f"Excluding {excluded_count} companies already in queue. Remaining companies to process: {len(new_company_info)}")
+        
+        else:
+            new_company_info = listed_company_info
+
+        matched_company_dict = match_company_names(listed_company=new_company_info)
+        print(f"Matched Company Data: {matched_company_dict}")
+        
+        #if some companies has the same name but different company_id, we need to handle that
+        # take the one that comes first in the list (higher priority) and extract the others (they will be appended to unmatched)
+        
+                
+                
+
+        #generate new name_code_dict with matched names
+        inserting_company = [{"name": entry.get("matched_name"), "company_id": entry.get("company_id")} for entry in matched_company_dict if entry.get("confidence", 0) >= 90.0]
+
+        #print(f"Companies to be inserted (confidence >= 90.0): {inserting_company}")
+        from utils.db_utils import store_company_queue
+        try:
+            #print(name_code_dict)
+            store_company_queue(companylist=inserting_company) #populate queue
+        except Exception as e:
+            print(f"Error storing company queue: {e}")
+            
+        # Persist low-confidence / unmatched entries so they are not reprocessed repeatedly
+        unmatched_company = [
+            {"name": entry.get("original_name") or entry.get("matched_name"), "company_id": entry.get("company_id")}
+            for entry in matched_company_dict
+            if entry.get("confidence", 0) < 90.0
+        ]
+        if unmatched_company:
+            try:
+                store_company_queue(companylist=unmatched_company, default_status="unmatched")
+                print(f"Stored {len(unmatched_company)} unmatched/low-confidence companies with status 'unmatched'.")
+            except Exception as e:
+                print(f"Error storing unmatched companies: {e}")
+        try:
+            from utils.db_utils import store_company_documents
+            #print(name_code_dict)
+            store_company_documents(companylist=inserting_company) #populate uat/prod
+        except Exception as e:
+            print(f"Error storing company collections: {e}")
+    else:
+        raise ValueError("No company data retrieved.")
+
+
+
 def match_company_names(listed_company):
     """_summary_
 
@@ -66,55 +145,123 @@ def match_company_names(listed_company):
         list: A list of matched company names with their confidence scores.
     """
     from utils.string_matching_utils import get_label_and_confidence
+    import re
 
     # Get the listed company names and their token count dictionary
     all_company, count_dict = get_company_name_list_and_count_dict()
     
-    #entry = name_code_dict[0]  # Process one entry at a time
+    #remove from all_company any name that is present in the queue and update count_dict
+    from utils.db_utils import get_queue_company_list
+    in_queue_company_list = get_queue_company_list() #returns list of (name, company_id) tuples
+    if (in_queue_company_list) and (len(in_queue_company_list) > 0):
+        queued_names = {t[0].strip().lower() for t in in_queue_company_list}
+        original_count = len(all_company)
+        all_company = [name for name in all_company if name.strip().lower() not in queued_names]
+        excluded_count = original_count - len(all_company)
+        # update count_dict by removing tokens of excluded names
+        for name in queued_names:
+            tokens = re.findall(r"\w+", (name or "").lower())
+            for tok in tokens:
+                if tok in count_dict:
+                    count_dict[tok] -= 1
+                    if count_dict[tok] <= 0:
+                        del count_dict[tok]
+                        
+        print(f"Removed {excluded_count} company names already in queue from candidate pool. Remaining candidates: {len(all_company)}")
     
-    matched_list = []
+    results = []
+
+    # First pass: split exact matches and candidates to run fuzzy matching on
+    exact_matches = []
+    to_match = []
     
     for entry in listed_company:
         company_name = entry.get("name", "")
-        if (company_name in all_company):
-            best_label = company_name
-            best_confidence = 1.0
-            best_source = company_name
-            matched_list.append({
+        if company_name in all_company:
+            exact_matches.append({
+                "original_name": company_name,
+                "matched_name": company_name,
+                "matched_source": company_name,
+                "confidence": 101,
+                "company_id": entry.get("company_id", "Unknown Code")
+            })
+        else:
+            to_match.append(entry)
+
+    # Add exact matches first
+    results.extend(exact_matches)
+
+    # Provide quick feedback about exact matches
+    if exact_matches:
+        print(f"Exact matches found: {len(exact_matches)}")
+        for m in exact_matches[:5]:  # Print first 5 exact matchess
+            print(f"  {m['original_name']} -> {m['matched_name']}")
+            
+            
+    # remove names already matched from all_company and update count_dict
+    if exact_matches:
+        removed = {m.get("matched_name") for m in exact_matches if m.get("matched_name")}
+        if removed:
+            # filter candidates excluding already matched names
+            all_company = [n for n in all_company if n not in removed]
+            # update token counts by subtracting tokens of removed entries
+            for name in removed:
+                tokens = re.findall(r"\w+", (name or "").lower())
+                for tok in tokens:
+                    if tok in count_dict:
+                        count_dict[tok] -= 1
+                        if count_dict[tok] <= 0:
+                            del count_dict[tok]
+            print(f"Removed {len(removed)} exact-match company names from candidate pool")
+
+    # Second pass: fuzzy matching with progress bar
+    from tqdm import tqdm
+    SINGLE_TOKEN_THRESHOLD = 3
+    if to_match:
+        for entry in tqdm(to_match, desc="String matching", unit="company"):
+            company_name = entry.get("name", "")
+            best_label = None
+            best_confidence = 0
+            best_source = None
+            for checking_name in all_company:
+                try:
+                    label, confidence = get_label_and_confidence(company_name, checking_name, count_dict, SINGLE_TOKEN_THRESHOLD=SINGLE_TOKEN_THRESHOLD)
+                except Exception:
+                    # If the helper fails for a candidate, skip it
+                    continue
+                if confidence is None:
+                    continue
+                if confidence == 100 or confidence == 100.0:
+                    best_label = checking_name
+                    best_confidence = confidence
+                    best_source = checking_name
+                    continue
+                if confidence > best_confidence:
+                    best_confidence = confidence
+                    best_label = checking_name
+                    best_source = checking_name
+            if best_label is None:
+                best_label = f"{company_name} (unmatched)"
+                best_confidence = 0.0
+            results.append({
                 "original_name": company_name,
                 "matched_name": best_label,
                 "matched_source": best_source,
                 "confidence": best_confidence,
                 "company_id": entry.get("company_id", "Unknown Code")
             })
-            continue
-        
-        best_label = None
-        best_confidence = -1.0
-        best_source = None
-        for checking_name in all_company:
-            label, confidence = get_label_and_confidence(company_name, checking_name, count_dict, SINGLE_TOKEN_THRESHOLD=50)
-            if confidence is None:
-                continue
-            if confidence > best_confidence:
-                best_confidence = confidence
-                # get_label_and_confidence returns (label, confidence) where
-                # label is 1 (match) or 0 (no match). We must not use the
-                # numeric label as the matched name. Use the checking_name
-                # (the official name) when this candidate has the best score.
-                best_label = checking_name
-                best_source = checking_name
-        if best_label is None:
-            best_label = company_name + " (unmatched)"
-            best_confidence = 0.0
-        matched_list.append({
-            "original_name": company_name,
-            "matched_name": best_label,
-            "matched_source": best_source,
-            "confidence": best_confidence,
-            "company_id": entry.get("company_id", "Unknown Code")
-        })
-    return matched_list
+            
+            #remove the company name from all_company and update count_dict
+            if best_source in all_company:
+                all_company.remove(best_source)
+                tokens = re.findall(r"\w+", (best_source or "").lower())
+                for tok in tokens:
+                    if tok in count_dict:
+                        count_dict[tok] -= 1
+                        if count_dict[tok] <= 0:
+                            del count_dict[tok]
+    
+    return results
 
 def get_company_name_list_and_count_dict():
     from utils.scraping_utils import get_web_page
@@ -157,6 +304,7 @@ if __name__ == "__main__":
     print(name_code_dict_matched)
     '''
     import time
+    import re
     start = time.perf_counter()
     try:
         populate_company_collections()

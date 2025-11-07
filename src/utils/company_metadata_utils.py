@@ -31,7 +31,7 @@ def get_company_result_dict():
         #    print("Shutdown event detected. Exiting document collection loop.")
         #    return
 
-        print(f"Processing page {page_num + 1}/{n_pages} (page size {COMPANY_PAGE_SIZE}) for company search")
+        #print(f"Processing page {page_num + 1}/{n_pages} (page size {COMPANY_PAGE_SIZE}) for company search")
 
         response = get_search_results(periodstart=PERIOD_START, periodend=PERIOD_END, url=CORPORATEINFO_URL, pagesize=COMPANY_PAGE_SIZE, pagestart=page_num)
 
@@ -48,8 +48,8 @@ def get_company_result_dict():
                 all_documents = all_documents[:MAX_FILES_PER_COMPANY]
                 break
             '''
-            print(f"Collected {len(doc_list)} documents from page {page_num + 1}")
-            print(f"Total documents collected so far: {len(all_documents)}")
+            #print(f"Collected {len(doc_list)} documents from page {page_num + 1}")
+            #print(f"Total documents collected so far: {len(all_documents)}")
         else:
             print(f"No documents found on page {page_num + 1}")
             continue

@@ -17,6 +17,14 @@ def run_pipeline():
         print(f"Error populating company collections: {e}")
         return
     
+    from company_metadata_scraper import run_company_metadata_pipeline
+    try:
+        print("Starting company metadata pipeline...")
+        run_company_metadata_pipeline()
+    except Exception as e:
+        print(f"Error running company metadata pipeline: {e}")
+        return
+    
     from utils.db_utils import reset_error_companies 
     try:
         reset_error_companies()
@@ -25,13 +33,15 @@ def run_pipeline():
         return    
     
     from utils.db_utils import get_pending_companies
-    pending_companies = get_pending_companies()
-    
+    # Collect pending companies and iterate with a progress bar
+    from tqdm import tqdm
+    pending_companies = list(get_pending_companies())
+
     if (not pending_companies) or (len(pending_companies) == 0):
         print("No pending companies to process.")
         return
-    
-    for company in pending_companies:
+
+    for company in tqdm(pending_companies, desc="Processing companies", unit="company"):
         company_name = company.get("name")
         company_id = company.get("company_id")
         if not company_name or not company_id:

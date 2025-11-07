@@ -161,6 +161,27 @@ def store_metadata_batch(metadata_list: list) -> None:
                 doc_to_insert = {k: v for k, v in duplicate_file.items() if k != "_id"}
                 doc_to_insert["file_name"] = new_file_name
 
+                # Before inserting, ensure we don't collide on other unique keys (e.g., document_id)
+                doc_id = doc_to_insert.get("document_id")
+                if doc_id:
+                    existing_doc = collection.find_one({"document_id": doc_id})
+                    if existing_doc:
+                        # Existing document with same document_id found. Decide resolution based on supporting files.
+                        new_supporting = doc_to_insert.get("supporting_file_paths") or []
+                        existing_supporting = existing_doc.get("supporting_file_paths") or []
+                        if len(new_supporting) > len(existing_supporting):
+                            try:
+                                # Update existing document with the more complete metadata from the renamed file
+                                duplicate_file_without_id = {k: v for k, v in doc_to_insert.items() if k != "_id"}
+                                collection.update_one({"document_id": doc_id}, {"$set": duplicate_file_without_id})
+                                print(f"Updated existing document_id {doc_id} with more complete supporting_file_paths (from renamed file).")
+                            except Exception as e:
+                                print(f"Failed to update existing document {doc_id}: {e}")
+                        else:
+                            print(f"Existing document with document_id {doc_id} already present; skipping insertion of renamed file {new_file_name}.")
+                        # In either case we've handled the document_id conflict; skip attempting to insert
+                        continue
+
                 try:
                     collection.insert_one(doc_to_insert)
                     print(f"Inserted duplicate with new name: {new_file_name}")
@@ -176,7 +197,7 @@ def store_metadata_batch(metadata_list: list) -> None:
     except Exception as e:
         print(f"Batch insert error: {e}")
 
-def store_company_queue(companylist):
+def store_company_queue(companylist, default_status: str = "pending"):
     # Implement the logic to store the company queue in the database
     if not companylist:
         print("No companies to store.")
@@ -186,7 +207,7 @@ def store_company_queue(companylist):
     from copy import deepcopy
     local_companylist = deepcopy(companylist)
 
-    print(f"Passed {len(local_companylist)} entries to the queue inserting function.")
+    print(f"Passed {len(local_companylist)} entries to the queue inserting function with status '{default_status}'.")
     db = connect_mongo()
     if db is None:
         raise ValueError("Database connection error.")
@@ -195,24 +216,50 @@ def store_company_queue(companylist):
     from datetime import datetime, timezone
     current_timestamp = datetime.now(timezone.utc)  # Get the current UTC timestamp
 
-    for company in local_companylist:
-        company["processed"] = False
-        company["status"] = "pending"
-        company["updated_at"] = current_timestamp
-        company["processed_company_metadata"] = False
+    inserted = 0
+    skipped_conflicts = 0
 
-    try:
-        result = collection.insert_many(local_companylist, ordered=False)
-        print(f"Inserted {len(result.inserted_ids)} companies into the queue.")
-    except BulkWriteError as bwe:
-        duplicate_count = sum(1 for error in bwe.details.get("writeErrors", []) if error.get("code") == 11000)
-        added_count = len(local_companylist) - duplicate_count
-        if added_count > 0:
-            print(f"Inserted {added_count} new companies into the queue.")
-        if duplicate_count > 0:
-            print(f"{duplicate_count} companies already exist in the queue. Skipping duplicates.")
-    except Exception as e:
-        print(f"Error inserting companies: {e}")
+    for comp in local_companylist:
+        name = comp.get("name")
+        cid = comp.get("company_id")
+
+        # Check if a document with the same name already exists
+        try:
+            existing = collection.find_one({"name": name})
+        except Exception as e:
+            print(f"DB lookup error for name='{name}': {e}")
+            existing = None
+
+        if existing:
+            # Conflict if company_id differs
+            if str(existing.get("company_id")) != str(cid):
+                skipped_conflicts += 1
+                print(f"Skipping insert for name='{name}' because an existing entry has company_id={existing.get('company_id')} (incoming {cid}).")
+                continue
+            else:
+                # Already present with same company_id: update timestamps
+                try:
+                    collection.update_one({"name": name}, {"$set": {"updated_at": current_timestamp}})
+                except Exception as e:
+                    print(f"Failed to update timestamp for existing company '{name}': {e}")
+                continue
+
+        # Not existing: prepare document and insert
+        doc = dict(comp)
+        doc.setdefault("processed", False)
+        doc["status"] = default_status
+        doc["updated_at"] = current_timestamp
+        doc.setdefault("processed_company_metadata", False)
+
+        try:
+            collection.insert_one(doc)
+            inserted += 1
+        except Exception as e:
+            print(f"Failed to insert company '{name}': {e}")
+
+    print(f"Inserted {inserted} new companies into the queue with status '{default_status}'.")
+    if skipped_conflicts > 0:
+        print(f"Skipped {skipped_conflicts} companies due to name/company_id conflicts.")
 
 def store_company_documents(companylist):
     # Implement the logic to store the company documents in the database
@@ -298,8 +345,8 @@ def get_companies_without_metadata():
 
     collection = db[COMPANIES_QUEUE_COLLECTION]
     try:
-        companies = list(collection.find({"processed_company_metadata": False}))
-        print(f"Retrieved {len(companies)} companies without metadata from the queue collection.")
+        companies = list(collection.find({"processed_company_metadata": False, "status": {"$ne": "unmatched"}}))
+        print(f"Retrieved {len(companies)}companies without metadata from the queue collection. Excluding 'unmatched' status.")
         return companies
     except Exception as e:
         print(f"Error retrieving companies without metadata: {e}")

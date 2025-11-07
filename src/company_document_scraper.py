@@ -34,7 +34,7 @@ def process_company_files(company_name: str, company_id: str):
             tqdm.write("Shutdown event detected. Exiting document collection loop.")
             return
 
-        tqdm.write(f"Processing page {page_num + 1}/{n_pages} (page size {FILES_PAGE_SIZE}) for {company_name}")
+        #tqdm.write(f"Processing page {page_num + 1}/{n_pages} (page size {FILES_PAGE_SIZE}) for {company_name}")
         
         try:
             response = get_search_results(company_name=company_name, pagesize=FILES_PAGE_SIZE, pagestart=page_num)
@@ -65,7 +65,7 @@ def process_company_files(company_name: str, company_id: str):
     tqdm.write(f"Total documents collected for {company_name}: {len(all_documents)}")
     # Extract and print the list of document IDs for debugging
     document_ids = [doc.get("ref_id", "Unknown ID") for doc in all_documents]
-    tqdm.write(f"Document IDs: {document_ids}")
+    #tqdm.write(f"Document IDs: {document_ids}")
 
     all_metadata = []
     
