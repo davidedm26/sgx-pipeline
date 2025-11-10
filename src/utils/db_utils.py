@@ -598,7 +598,10 @@ def add_ticker_info(company_id, ticker_code, ticker_name):
         try:
             res = coll.update_one(
                 {"company_id": company_id},
-                {"$set": {"code": ticker_code, "trading_name": ticker_name, "updated_at": updated_at}}
+                {"$set": {
+                    "metadata.code": ticker_code,
+                    "metadata.trading_name": ticker_name
+                }}
             )
             if res.matched_count > 0:
                 print(f"Added/Updated ticker for company_id {company_id} in {coll.name}: {ticker_code} / {ticker_name}")

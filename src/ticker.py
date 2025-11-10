@@ -98,7 +98,7 @@ def match_company_names(ticker_list, company_list):
 
             
             #remove the company name from company_list and update count_dict
-            if best_match in company_list:
+            if best_match in company_list and best_confidence == 100:
                 company_list.remove(best_match)
                 tokens = re.findall(r"\w+", (best_match or "").lower())
                 for tok in tokens:
